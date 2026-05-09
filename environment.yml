@@ -1,0 +1,14 @@
+name: monte-carlo
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+  - numpy
+  - scipy
+  - matplotlib
+  - pandas
+  - jupyter
+  - ipykernel
+  - pip
+  - pip:
+      - -e .[dev]
