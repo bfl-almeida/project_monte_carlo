@@ -1,39 +1,88 @@
-# Monte Carlo Option Pricing Library
+# Monte Carlo Methods for Derivative Pricing and Variance Reduction
 
-Python project for pricing derivatives with Monte Carlo simulation under the Black-Scholes framework.
+A research-oriented study on Monte Carlo simulation methods for option pricing under the
+Black-Scholes framework, with a focus on convergence analysis, variance reduction, and
+discretisation bias.
 
-## Features
+## Research Questions
 
-- European call pricing
-- European put pricing
-- Up-and-out barrier call pricing
-- Antithetic variates for variance reduction
-- Convergence analysis against Black-Scholes analytical benchmarks
+1. **Convergence** — How does the MC pricing error scale with simulation budget *N*?
+   Does the observed *O(N^{-1/2})* rate hold in practice?
+2. **Variance Reduction** — How much does antithetic sampling reduce estimator variance
+   for European and barrier options, and what is the efficiency gain per unit of compute?
+3. **Confidence Interval Coverage** — Do the 95 % asymptotic CIs based on the CLT achieve
+   their nominal coverage across a realistic parameter grid?
+4. **Discretisation Bias in Barrier Options** — How does path resolution (number of time
+   steps) affect the knock-out probability and the resulting pricing bias?
 
-## Tech stack
+## Methods Implemented
 
-- Python
-- NumPy
-- SciPy
-- Matplotlib
-- pytest
+| Method | Description |
+|---|---|
+| Black-Scholes (analytical) | Closed-form price for European calls and puts |
+| Standard Monte Carlo | i.i.d. GBM terminal-price simulation |
+| Antithetic Variates | Paired ±Z draws; cuts variance roughly in half for smooth payoffs |
+| Path Simulation | Full GBM path discretisation for path-dependent contracts |
+| Barrier Options | Up-and-out / down-and-out knock-out payoffs |
 
-## Project structure
+## Tech Stack
+
+- Python ≥ 3.10
+- NumPy — vectorised simulation
+- SciPy — normal CDF, statistical utilities
+- Pandas — structured experiment outputs
+- Matplotlib — convergence and bias plots
+- pytest — reproducibility tests
+
+## Project Structure
 
 ```text
-monte-carlo-option-pricing-v2/
+monte-carlo-option-pricing/
 ├─ pyproject.toml
 ├─ README.md
 ├─ .gitignore
 ├─ src/
 │  └─ option_pricing/
 │     ├─ __init__.py
-│     ├─ black_scholes.py
-│     ├─ monte_carlo.py
-│     └─ utils.py
+│     ├─ black_scholes.py      # Analytical BS prices and Greeks
+│     ├─ monte_carlo.py        # Simulation engine (European + barrier)
+│     ├─ experiments.py        # Reproducible research experiments
+│     └─ utils.py              # Statistical helpers, convergence table
 ├─ tests/
 │  └─ test_pricing.py
 ├─ notebooks/
-│  └─ demo.ipynb
+│  └─ research_demo.ipynb
 └─ reports/
-   └─ figures/
+   ├─ figures/
+   └─ tables/
+```
+
+## Quickstart
+
+```python
+from option_pricing import mc_european_option_price, bs_call_price
+from option_pricing.experiments import run_convergence_experiment
+
+# Analytical benchmark
+price = bs_call_price(S0=100, K=100, T=1, r=0.05, sigma=0.2)
+
+# Monte Carlo estimate with antithetic variates
+result = mc_european_option_price(
+    S0=100, K=100, T=1, r=0.05, sigma=0.2,
+    option_type="call", n_paths=100_000, antithetic=True, random_seed=42,
+)
+print(f"MC price: {result.price:.4f}  SE: {result.standard_error:.4f}")
+
+# Convergence experiment
+df = run_convergence_experiment()
+print(df.to_string(index=False))
+```
+
+## Key Results (illustrative)
+
+- Antithetic variates achieve roughly **2× variance reduction** for at-the-money European
+  calls, consistent with the theoretical prediction for smooth payoffs.
+- The empirical convergence rate is close to the theoretical *O(N^{-1/2})*, confirmed by
+  log-log regression on absolute error vs. *N*.
+- Barrier option prices exhibit a systematic **upward bias** when using few time steps,
+  converging to the fine-grid estimate as *n_steps → ∞*.
