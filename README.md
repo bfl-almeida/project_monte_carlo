@@ -7,6 +7,12 @@ This repository contains a self-directed quantitative finance project implementi
 
 The goal is to demonstrate practical skills relevant to quantitative finance roles: derivatives pricing, numerical methods, statistical validation, model risk analysis and Python-based quantitative tooling.
 
+## Why this project matters
+
+This project demonstrates core building blocks of quantitative finance: stochastic simulation, derivatives pricing, numerical convergence, statistical confidence intervals, variance reduction and model validation against analytical benchmarks.
+
+It is designed as an educational quantitative finance library, not as a production front-office pricing system.
+
 ## Research Questions
 
 1. **Convergence** — How does the MC pricing error scale with simulation budget *N*?
