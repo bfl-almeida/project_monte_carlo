@@ -233,9 +233,29 @@ is somewhat better.
 
 ### 4 · Discretisation Bias — Up-and-Out Barrier Option
 
-`seed=42`. S₀ = 100, K = 100, barrier B = 120, T = 1 yr, r = 5 %, σ = 20 %. N = 100 000 antithetic paths.
-Bias is measured against the finest grid (n_steps = 504, proxy for continuous monitoring).
-Coarse grids miss barrier crossings and overstate the price — by up to **+1.32** (+103 %) at n_steps = 2.
+Path-dependent options such as barrier options cannot be priced from the terminal stock price alone —
+the full trajectory must be simulated to check whether the barrier was crossed at any point during the
+option's life. In practice, paths are simulated on a discrete time grid of n\_steps monitoring points.
+The knock-out condition is then checked only at those grid points, meaning that crossings occurring
+*between* two consecutive steps are invisible to the simulator. Sparse grids systematically under-count
+knock-out events, leaving paths alive that should have been extinguished, and therefore **overstate**
+the option price. As the grid becomes finer, the discrete-monitoring price converges to the
+continuous-monitoring price.
+
+This experiment prices an up-and-out call (S₀ = 100, K = 100, barrier B = 120, T = 1 yr, r = 5 %,
+σ = 20 %) using 100 000 antithetic paths (seed = 42) across nine time-step resolutions ranging from
+n\_steps = 2 (semi-annual monitoring) to n\_steps = 504 (twice-daily monitoring). The finest grid
+serves as the proxy for the continuous price; bias at each coarser resolution is measured relative to it.
+
+The results show a pronounced and monotonically decreasing bias: at n\_steps = 2 the price is
+**2.6069**, more than double the finest-grid estimate of **1.2825** — an absolute overstatement of
+**+1.32** (+103 %). The bias halves roughly every time the number of steps doubles, consistent with
+the known $O(1/\sqrt{n\_\text{steps}})$ convergence rate for discrete barrier monitoring. By
+n\_steps = 252 (daily monitoring) the bias has fallen to **+0.04** (3 %), and the 95 % confidence
+intervals at n\_steps = 252 and n\_steps = 504 are nearly overlapping, indicating practical convergence
+at daily resolution. This result has a direct operational implication: practitioners using weekly or
+monthly monitoring grids for barrier products should expect a material upward pricing bias, and daily
+or sub-daily grids are required for reliable estimates.
 
 | n\_steps | dt | MC Price | 95 % CI | Bias vs. n = 504 |
 |---------:|---:|--------:|:--------|----------------:|
