@@ -1,5 +1,6 @@
 ![Python](https://img.shields.io/badge/Python-3.10%2B-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
+![Tests](https://github.com/bfl-almeida/project_monte_carlo/actions/workflows/tests.yml/badge.svg)
 
 # Monte Carlo Methods for Derivative Pricing and Variance Reduction
 
