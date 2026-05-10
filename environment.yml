@@ -10,5 +10,3 @@ dependencies:
   - jupyter
   - ipykernel
   - pip
-  - pip:
-      - -e .[dev]

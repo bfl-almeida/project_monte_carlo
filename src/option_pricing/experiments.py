@@ -61,14 +61,21 @@ def run_convergence_experiment(
     sigma: float = _BASE["sigma"],
     path_grid: list[int] = _DEFAULT_PATH_GRID,
     random_seed: int = 42,
+    n_seeds: int = 1,
     alpha: float = 0.05,
 ) -> pd.DataFrame:
     """Convergence of MC pricing error as a function of simulation budget N.
 
     For each N in *path_grid* the experiment runs **both** plain MC and
-    antithetic MC with the same seed and records price, absolute error,
-    standard error, 95 % CI and runtime.  A log-log OLS regression over the
-    full grid yields the empirical convergence rate β (theoretical: −0.5).
+    antithetic MC and records price, absolute error, standard error, 95 % CI
+    and runtime.  A log-log OLS regression over the full grid yields the
+    empirical convergence rate β (theoretical: −0.5).
+
+    When *n_seeds* > 1, the full N-grid is repeated for seeds
+    ``random_seed, random_seed+1, …, random_seed+n_seeds−1``.  Each seed
+    produces its own OLS slope; the reported ``conv_rate`` is the mean slope
+    across seeds and ``conv_rate_std`` is its standard deviation, giving a
+    robust, seed-averaged estimate of the convergence rate.
 
     Parameters
     ----------
@@ -78,8 +85,11 @@ def run_convergence_experiment(
         Ordered sequence of simulation sizes to sweep (should span at least
         two orders of magnitude for a meaningful regression).
     random_seed:
-        Fixed seed; all rows use the same seed so differences across N reflect
-        only the simulation budget, not the draw sequence.
+        Base seed.  When n_seeds == 1 this is the only seed used.
+    n_seeds:
+        Number of independent seeds to average over.  Higher values reduce
+        the influence of any single lucky/unlucky draw sequence on the
+        reported convergence rate.  20–50 seeds is sufficient in practice.
     alpha:
         Significance level for the asymptotic CI.
 
@@ -88,54 +98,72 @@ def run_convergence_experiment(
     pd.DataFrame
         Columns: ``n_paths``, ``method``, ``mc_price``, ``bs_price``,
         ``abs_error``, ``rel_error_pct``, ``std_error``, ``ci_lower``,
-        ``ci_upper``, ``runtime_s``.
-
-    Notes
-    -----
-    The convergence rate printed at the bottom of the table is estimated by
-    :func:`~option_pricing.utils.estimate_convergence_rate` via OLS in log
-    space, using only rows where abs_error > 0 (to avoid log(0)).
+        ``ci_upper``, ``runtime_s``, ``conv_rate``, ``conv_rate_std``
+        (``conv_rate_std`` is NaN when n_seeds == 1).
     """
     benchmark = bs_call_price(S0, K, T, r, sigma)
     rows: list[dict] = []
 
-    for antithetic, label in [(False, "standard"), (True, "antithetic")]:
-        for n_paths in path_grid:
-            t0 = time.perf_counter()
-            res = mc_european_option_price(
-                S0=S0, K=K, T=T, r=r, sigma=sigma,
-                option_type="call",
-                n_paths=n_paths,
-                antithetic=antithetic,
-                random_seed=random_seed,
-            )
-            rt = time.perf_counter() - t0
+    # Per-(method, n_paths) accumulator for seed-averaged price & error
+    from collections import defaultdict
+    seed_errors: dict[tuple, list[float]] = defaultdict(list)
+    seed_prices: dict[tuple, list[float]] = defaultdict(list)
 
-            lo, hi = confidence_interval(res, alpha=alpha)
-            abs_err = abs(res.price - benchmark)
+    for seed_offset in range(n_seeds):
+        seed = random_seed + seed_offset
+        for antithetic, label in [(False, "standard"), (True, "antithetic")]:
+            for n_paths in path_grid:
+                t0 = time.perf_counter()
+                res = mc_european_option_price(
+                    S0=S0, K=K, T=T, r=r, sigma=sigma,
+                    option_type="call",
+                    n_paths=n_paths,
+                    antithetic=antithetic,
+                    random_seed=seed,
+                )
+                rt = time.perf_counter() - t0
 
-            rows.append({
-                "n_paths":       n_paths,
-                "method":        label,
-                "mc_price":      res.price,
-                "bs_price":      benchmark,
-                "abs_error":     abs_err,
-                "rel_error_pct": abs_err / benchmark * 100.0,
-                "std_error":     res.standard_error,
-                "ci_lower":      lo,
-                "ci_upper":      hi,
-                "runtime_s":     rt,
-            })
+                lo, hi = confidence_interval(res, alpha=alpha)
+                abs_err = abs(res.price - benchmark)
+
+                seed_errors[(label, n_paths)].append(abs_err)
+                seed_prices[(label, n_paths)].append(res.price)
+
+                rows.append({
+                    "seed":          seed,
+                    "n_paths":       n_paths,
+                    "method":        label,
+                    "mc_price":      res.price,
+                    "bs_price":      benchmark,
+                    "abs_error":     abs_err,
+                    "rel_error_pct": abs_err / benchmark * 100.0,
+                    "std_error":     res.standard_error,
+                    "ci_lower":      lo,
+                    "ci_upper":      hi,
+                    "runtime_s":     rt,
+                })
 
     df = pd.DataFrame(rows)
 
-    # Attach empirical convergence rate per method as a column
-    rates: dict[str, float] = {}
-    for method, grp in df.groupby("method"):
-        rates[method] = estimate_convergence_rate(
-            grp["n_paths"].tolist(), grp["abs_error"].tolist()
-        )
-    df["conv_rate"] = df["method"].map(rates)
+    # Compute seed-averaged convergence rate per method
+    rates_mean: dict[str, float] = {}
+    rates_std: dict[str, float] = {}
+
+    for antithetic, label in [(False, "standard"), (True, "antithetic")]:
+        per_seed_rates: list[float] = []
+        for seed_offset in range(n_seeds):
+            seed = random_seed + seed_offset
+            seed_rows = df[(df["method"] == label) & (df["seed"] == seed)]
+            rate = estimate_convergence_rate(
+                seed_rows["n_paths"].tolist(),
+                seed_rows["abs_error"].tolist(),
+            )
+            per_seed_rates.append(rate)
+        rates_mean[label] = float(np.mean(per_seed_rates))
+        rates_std[label]  = float(np.std(per_seed_rates, ddof=1)) if n_seeds > 1 else float("nan")
+
+    df["conv_rate"]     = df["method"].map(rates_mean)
+    df["conv_rate_std"] = df["method"].map(rates_std)
 
     return df
 
@@ -274,7 +302,7 @@ def run_ci_coverage_experiment(
     pd.DataFrame
         Columns: ``S0``, ``K``, ``T``, ``r``, ``sigma``, ``moneyness``,
         ``bs_price``, ``nominal_coverage``, ``empirical_coverage``,
-        ``coverage_std_error``.
+        ``coverage_std_error``, ``runtime_total_s``, ``runtime_per_rep_s``.
     """
     if param_grid is None:
         param_grid = [
@@ -297,6 +325,7 @@ def run_ci_coverage_experiment(
         moneyness = S0 / K
 
         hits = 0
+        t_scenario_start = time.perf_counter()
         for rep in range(n_replications):
             res = mc_european_option_price(
                 S0=S0, K=K, T=T, r=r, sigma=sigma,
@@ -306,6 +335,7 @@ def run_ci_coverage_experiment(
             lo, hi = confidence_interval(res, alpha=alpha)
             if lo <= benchmark <= hi:
                 hits += 1
+        runtime_total = time.perf_counter() - t_scenario_start
 
         emp_cov = hits / n_replications
         # Standard error of a proportion
@@ -322,6 +352,8 @@ def run_ci_coverage_experiment(
             "nominal_coverage":  1.0 - alpha,
             "empirical_coverage":emp_cov,
             "coverage_std_error":float(cov_se),
+            "runtime_total_s":   runtime_total,
+            "runtime_per_rep_s": runtime_total / n_replications,
         })
 
     return pd.DataFrame(rows)
