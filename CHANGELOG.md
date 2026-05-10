@@ -57,6 +57,28 @@ from the four experiments. Changes per subsection:
   and state the operational implication.
 - **Summary cell** updated with actual numbers for all four experiments.
 
+### Added — Runtime metrics across all experiments
+
+#### `src/option_pricing/experiments.py`
+- `run_convergence_experiment` — each row now includes `runtime_s` (wall-clock seconds for that simulation).
+- `run_variance_reduction_experiment` — output includes `mean_rt_standard` and `mean_rt_antithetic`
+  (mean per-replication wall-clock time for each method).
+- `run_ci_coverage_experiment` — output includes `runtime_total_s` (total wall-clock time for the
+  200-replication loop) and `runtime_per_rep_s` (mean time per replication) per scenario.
+- `run_discretisation_bias_experiment` — each row includes `runtime_s` (wall-clock seconds for that
+  n_steps configuration).
+- All timings measured with `time.perf_counter()`.
+
+#### `notebooks/research_demo.ipynb`
+- Experiment 1 results table: added `runtime (s)` column (mean across seeds).
+- Experiment 2 results table: added `RT std (s)` and `RT anti (s)` columns.
+- Experiment 3 results table: added `RT total (s)` and `RT / rep (s)` columns.
+- Experiment 4 results table: added `runtime (s)` column.
+
+#### `README.md`
+- Features section: added "runtime" to the list of statistical metrics reported per experiment.
+- All four key-results tables updated with the corresponding runtime column(s).
+
 ---
 
 ## [0.2.1] — 2026-05-10
