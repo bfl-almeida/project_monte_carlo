@@ -28,3 +28,7 @@ pythonpath = [
 testpaths = [
     "tests"
 ]
+[dependency-groups]
+dev = [
+    "pytest (>=9.0.3,<10.0.0)"
+]
