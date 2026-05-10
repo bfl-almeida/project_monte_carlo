@@ -302,7 +302,7 @@ def run_ci_coverage_experiment(
     pd.DataFrame
         Columns: ``S0``, ``K``, ``T``, ``r``, ``sigma``, ``moneyness``,
         ``bs_price``, ``nominal_coverage``, ``empirical_coverage``,
-        ``coverage_std_error``.
+        ``coverage_std_error``, ``runtime_total_s``, ``runtime_per_rep_s``.
     """
     if param_grid is None:
         param_grid = [
@@ -325,6 +325,7 @@ def run_ci_coverage_experiment(
         moneyness = S0 / K
 
         hits = 0
+        t_scenario_start = time.perf_counter()
         for rep in range(n_replications):
             res = mc_european_option_price(
                 S0=S0, K=K, T=T, r=r, sigma=sigma,
@@ -334,6 +335,7 @@ def run_ci_coverage_experiment(
             lo, hi = confidence_interval(res, alpha=alpha)
             if lo <= benchmark <= hi:
                 hits += 1
+        runtime_total = time.perf_counter() - t_scenario_start
 
         emp_cov = hits / n_replications
         # Standard error of a proportion
@@ -350,6 +352,8 @@ def run_ci_coverage_experiment(
             "nominal_coverage":  1.0 - alpha,
             "empirical_coverage":emp_cov,
             "coverage_std_error":float(cov_se),
+            "runtime_total_s":   runtime_total,
+            "runtime_per_rep_s": runtime_total / n_replications,
         })
 
     return pd.DataFrame(rows)

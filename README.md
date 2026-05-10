@@ -16,6 +16,7 @@ The goal is to demonstrate practical skills relevant to quantitative finance rol
 - Monte Carlo pricing for European options
 - Confidence intervals and convergence analysis
 - Variance reduction with antithetic variates
+- Statistical metrics per experiment: absolute error, relative error, standard error, confidence intervals, runtime
 - Greeks estimation using analytical formulas and finite differences — in progress
 - Barrier option pricing — in progress
 - Unit tests with pytest
@@ -126,18 +127,18 @@ All values are mean ± std across the 50 seeds. The ± on MC Price reflects esti
 seeds; the ± on |Error| reflects how much the absolute pricing error fluctuates from one draw sequence
 to another — narrowing predictably as N grows.
 
-| N | Method | MC Price (mean ± std) | \|Error\| (mean ± std) | Rel Error % | MC Std Error |
-|--:|:-------|----------------------:|----------------------:|------------:|-------------:|
-| 1 000 | Standard | 10.4547 ± 0.4274 | 0.3541 ± 0.2340 | 3.39 | 0.4655 |
-| 1 000 | Antithetic | 10.3420 ± 0.3398 | 0.2762 ± 0.2229 | 2.64 | 0.4594 |
-| 10 000 | Standard | 10.4578 ± 0.1486 | 0.1155 ± 0.0923 | 1.11 | 0.1471 |
-| 10 000 | Antithetic | 10.4249 ± 0.0951 | 0.0738 ± 0.0644 | 0.71 | 0.1468 |
-| 100 000 | Standard | 10.4557 ± 0.0531 | 0.0458 ± 0.0267 | 0.44 | 0.0466 |
-| 100 000 | Antithetic | 10.4497 ± 0.0360 | 0.0299 ± 0.0195 | 0.29 | 0.0465 |
-| 250 000 | Standard | 10.4491 ± 0.0295 | 0.0228 ± 0.0184 | 0.22 | 0.0294 |
-| 250 000 | Antithetic | 10.4551 ± 0.0246 | 0.0205 ± 0.0141 | 0.20 | 0.0294 |
+| N | Method | MC Price (mean ± std) | \|Error\| (mean ± std) | Rel Error % | MC Std Error | Runtime (s, mean) |
+|--:|:-------|----------------------:|----------------------:|------------:|-------------:|------------------:|
+| 1 000 | Standard | 10.4547 ± 0.4274 | 0.3541 ± 0.2340 | 3.39 | 0.4655 | see notebook |
+| 1 000 | Antithetic | 10.3420 ± 0.3398 | 0.2762 ± 0.2229 | 2.64 | 0.4594 | see notebook |
+| 10 000 | Standard | 10.4578 ± 0.1486 | 0.1155 ± 0.0923 | 1.11 | 0.1471 | see notebook |
+| 10 000 | Antithetic | 10.4249 ± 0.0951 | 0.0738 ± 0.0644 | 0.71 | 0.1468 | see notebook |
+| 100 000 | Standard | 10.4557 ± 0.0531 | 0.0458 ± 0.0267 | 0.44 | 0.0466 | see notebook |
+| 100 000 | Antithetic | 10.4497 ± 0.0360 | 0.0299 ± 0.0195 | 0.29 | 0.0465 | see notebook |
+| 250 000 | Standard | 10.4491 ± 0.0295 | 0.0228 ± 0.0184 | 0.22 | 0.0294 | see notebook |
+| 250 000 | Antithetic | 10.4551 ± 0.0246 | 0.0205 ± 0.0141 | 0.20 | 0.0294 | see notebook |
 
-*MC Std Error is the within-simulation standard error (SE = sample std / √N), averaged across seeds.*
+*MC Std Error is the within-simulation standard error (SE = sample std / √N), averaged across seeds. Runtime is wall-clock time per simulation run, averaged across the 50 seeds; hardware-dependent — live values are shown in the research notebook.*
 
 ---
 
@@ -164,23 +165,25 @@ consistently outperforms standard MC across all tested budgets. The VRF varies a
 highly precise — which is expected behaviour as the estimator variance becomes dominated by
 systematic rather than random components.
 
-| N | Var (Standard) | Var (Antithetic) | VRF | Efficiency Ratio |
-|--:|---------------:|-----------------:|----:|-----------------:|
-| 500 | 0.4866 | 0.1834 | 2.65× | 2.81× |
-| 1 000 | 0.2371 | 0.0819 | 2.90× | 2.72× |
-| 2 000 | 0.1139 | 0.0364 | 3.13× | 3.33× |
-| 5 000 | 0.0568 | 0.0113 | 5.04× | 5.79× |
-| 10 000 | 0.0240 | 0.0084 | 2.84× | 3.36× |
-| 25 000 | 0.0086 | 0.0032 | 2.66× | 3.54× |
-| 50 000 | 0.0036 | 0.0024 | 1.53× | 2.00× |
-| 100 000 | 0.0016 | 0.0014 | 1.17× | 1.33× |
-| 250 000 | 0.0008 | 0.0005 | 1.78× | 1.89× |
+| N | RT Std (s) | RT Anti (s) | Var (Standard) | Var (Antithetic) | VRF | Efficiency Ratio |
+|--:|-----------:|------------:|---------------:|-----------------:|----:|-----------------:|
+| 500 | see nb | see nb | 0.4866 | 0.1834 | 2.65× | 2.81× |
+| 1 000 | see nb | see nb | 0.2371 | 0.0819 | 2.90× | 2.72× |
+| 2 000 | see nb | see nb | 0.1139 | 0.0364 | 3.13× | 3.33× |
+| 5 000 | see nb | see nb | 0.0568 | 0.0113 | 5.04× | 5.79× |
+| 10 000 | see nb | see nb | 0.0240 | 0.0084 | 2.84× | 3.36× |
+| 25 000 | see nb | see nb | 0.0086 | 0.0032 | 2.66× | 3.54× |
+| 50 000 | see nb | see nb | 0.0036 | 0.0024 | 1.53× | 2.00× |
+| 100 000 | see nb | see nb | 0.0016 | 0.0014 | 1.17× | 1.33× |
+| 250 000 | see nb | see nb | 0.0008 | 0.0005 | 1.78× | 1.89× |
 
 **Median VRF: 2.66×  ·  Median efficiency ratio: 2.92×**
 
+*RT Std / RT Anti: mean wall-clock runtime per replication for the standard and antithetic estimators respectively; hardware-dependent — live values are shown in the research notebook.*
+
 The VRF varies across N because the gain depends on how much random noise remains to be cancelled. At moderate budgets (N = 1 000–25 000) both estimators are still far from convergence, so the negative correlation between antithetic pairs has a large noise pool to work with and the VRF is consistently above 2×, peaking at 5.04× for N = 5 000. At very large N (100 000+) both estimators have already converged close to the true price, the residual variance is tiny, and the two methods become nearly equally precise — compressing the VRF toward 1×. The reduction is most valuable at moderate N, indicating where the practical sweet spot is, since extremely large N is computationally expensive and delivers diminishing returns regardless of the estimator used.
 
-*Variance estimates are cross-replication sample variances over 50 independent runs per (N, method) cell.*
+*Variance estimates are cross-replication sample variances over 50 independent runs per (N, method) cell. Runtime columns show mean wall-clock time per replication; hardware-dependent — live values are shown in the research notebook.*
 
 ---
 
@@ -218,16 +221,16 @@ convergence is slower relative to the skewness. Out-of-the-money and high-volati
 approach 93 %, consistent with a more spread-out payoff distribution where the normal approximation
 is somewhat better.
 
-| Scenario | S₀ / K | σ | T | BS Price | Empirical Coverage |
-|:---------|-------:|--:|--:|---------:|------------------:|
-| ITM (K = 90) | 1.11 | 20 % | 1.00 yr | 16.6994 | 91.5 % |
-| ATM (K = 100) | 1.00 | 20 % | 1.00 yr | 10.4506 | 91.5 % |
-| OTM (K = 110) | 0.91 | 20 % | 1.00 yr | 6.0401 | 93.0 % |
-| Short tenor | 1.00 | 20 % | 0.25 yr | 4.6150 | 92.5 % |
-| Low vol (σ = 10 %) | 1.00 | 10 % | 1.00 yr | 6.8050 | 91.0 % |
-| High vol (σ = 40 %) | 1.00 | 40 % | 1.00 yr | 18.0230 | 92.0 % |
+| Scenario | S₀ / K | σ | T | BS Price | Empirical Coverage | RT total (s) | RT / rep (s) |
+|:---------|-------:|--:|--:|---------:|------------------:|-------------:|-------------:|
+| ITM (K = 90) | 1.11 | 20 % | 1.00 yr | 16.6994 | 91.5 % | 0.082 | 0.000411 |
+| ATM (K = 100) | 1.00 | 20 % | 1.00 yr | 10.4506 | 91.5 % | 0.070 | 0.000348 |
+| OTM (K = 110) | 0.91 | 20 % | 1.00 yr | 6.0401 | 93.0 % | 0.070 | 0.000349 |
+| Short tenor | 1.00 | 20 % | 0.25 yr | 4.6150 | 92.5 % | 0.064 | 0.000322 |
+| Low vol (σ = 10 %) | 1.00 | 10 % | 1.00 yr | 6.8050 | 91.0 % | 0.073 | 0.000363 |
+| High vol (σ = 40 %) | 1.00 | 40 % | 1.00 yr | 18.0230 | 92.0 % | 0.082 | 0.000411 |
 
-*Coverage standard error ≈ 1.5 % per scenario (proportion SE over 200 replications).*
+*Coverage standard error ≈ 1.5 % per scenario (proportion SE over 200 replications). RT total: wall-clock time for all 200 replications per scenario; RT / rep: mean per replication. Hardware-dependent.*
 
 ---
 
@@ -257,14 +260,14 @@ at daily resolution. This result has a direct operational implication: practitio
 monthly monitoring grids for barrier products should expect a material upward pricing bias, and daily
 or sub-daily grids are required for reliable estimates.
 
-| n\_steps | dt | MC Price | 95 % CI | Bias vs. n = 504 |
-|---------:|---:|--------:|:--------|----------------:|
-| 2 | 0.500 | 2.6069 | [2.576, 2.637] | +1.3244 |
-| 4 | 0.250 | 2.2629 | [2.234, 2.291] | +0.9804 |
-| 8 | 0.125 | 1.9908 | [1.964, 2.017] | +0.7083 |
-| 16 | 0.063 | 1.7651 | [1.740, 1.790] | +0.4826 |
-| 32 | 0.031 | 1.6142 | [1.590, 1.638] | +0.3317 |
-| 64 | 0.016 | 1.4915 | [1.469, 1.514] | +0.2090 |
-| 128 | 0.008 | 1.3769 | [1.355, 1.398] | +0.0944 |
-| 252 | 0.004 | 1.3239 | [1.303, 1.345] | +0.0414 |
-| **504** | **0.002** | **1.2825** | **[1.262, 1.303]** | **—** |
+| n\_steps | dt | MC Price | 95 % CI | Bias vs. n = 504 | Runtime (s) |
+|---------:|---:|--------:|:--------|----------------:|------------:|
+| 2 | 0.500 | 2.6069 | [2.576, 2.637] | +1.3244 | 0.015 |
+| 4 | 0.250 | 2.2629 | [2.234, 2.291] | +0.9804 | 0.019 |
+| 8 | 0.125 | 1.9908 | [1.964, 2.017] | +0.7083 | 0.037 |
+| 16 | 0.063 | 1.7651 | [1.740, 1.790] | +0.4826 | 0.061 |
+| 32 | 0.031 | 1.6142 | [1.590, 1.638] | +0.3317 | 0.093 |
+| 64 | 0.016 | 1.4915 | [1.469, 1.514] | +0.2090 | 0.184 |
+| 128 | 0.008 | 1.3769 | [1.355, 1.398] | +0.0944 | 0.412 |
+| 252 | 0.004 | 1.3239 | [1.303, 1.345] | +0.0414 | 0.777 |
+| **504** | **0.002** | **1.2825** | **[1.262, 1.303]** | **—** | **1.659** |
