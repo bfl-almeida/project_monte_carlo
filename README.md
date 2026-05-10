@@ -1,3 +1,6 @@
+![Python](https://img.shields.io/badge/Python-3.10%2B-blue)
+![License](https://img.shields.io/badge/license-MIT-green)
+
 # Monte Carlo Methods for Derivative Pricing and Variance Reduction
 
 A research-oriented study on Monte Carlo simulation methods for option pricing under the
