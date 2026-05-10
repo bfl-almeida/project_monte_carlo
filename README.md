@@ -3,9 +3,21 @@
 
 # Monte Carlo Methods for Derivative Pricing and Variance Reduction
 
+## Overview
+
 This repository contains a self-directed quantitative finance project implementing Monte Carlo option pricing under the Black-Scholes framework. It includes analytical benchmarks, stochastic simulation, confidence intervals, convergence analysis, variance reduction techniques, Greeks estimation and barrier option pricing.
 
 The goal is to demonstrate practical skills relevant to quantitative finance roles: derivatives pricing, numerical methods, statistical validation, model risk analysis and Python-based quantitative tooling.
+
+## Features
+
+- Analytical Black-Scholes pricing for European calls and puts
+- Monte Carlo pricing for European options
+- Confidence intervals and convergence analysis
+- Variance reduction with antithetic variates
+- Greeks estimation using analytical formulas and finite differences — in progress
+- Barrier option pricing — in progress
+- Unit tests with pytest — in progress
 
 ## Why this project matters
 
