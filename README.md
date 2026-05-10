@@ -3,9 +3,9 @@
 
 # Monte Carlo Methods for Derivative Pricing and Variance Reduction
 
-A research-oriented study on Monte Carlo simulation methods for option pricing under the
-Black-Scholes framework, with a focus on convergence analysis, variance reduction, and
-discretisation bias.
+This repository contains a self-directed quantitative finance project implementing Monte Carlo option pricing under the Black-Scholes framework. It includes analytical benchmarks, stochastic simulation, confidence intervals, convergence analysis, variance reduction techniques, Greeks estimation and barrier option pricing.
+
+The goal is to demonstrate practical skills relevant to quantitative finance roles: derivatives pricing, numerical methods, statistical validation, model risk analysis and Python-based quantitative tooling.
 
 ## Research Questions
 
