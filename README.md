@@ -18,7 +18,7 @@ The goal is to demonstrate practical skills relevant to quantitative finance rol
 - Variance reduction with antithetic variates
 - Greeks estimation using analytical formulas and finite differences — in progress
 - Barrier option pricing — in progress
-- Unit tests with pytest — in progress
+- Unit tests with pytest
 
 ## Why this project matters
 
@@ -143,7 +143,26 @@ to another — narrowing predictably as N grows.
 
 ### 2 · Variance Reduction — Antithetic Variates
 
-Seeds `0 … 49` (50 independent replications per N). VRF = Var(standard) / Var(antithetic). Efficiency ratio adjusts VRF for actual compute time.
+Antithetic variates reduce estimator variance by pairing each draw Z with its mirror −Z, producing
+negatively correlated path pairs whose payoffs partially cancel each other's noise. For smooth,
+monotone payoffs such as European calls, the theoretical variance reduction factor (VRF) approaches 2×
+as the payoff-to-draw correlation approaches −1.
+
+To measure this empirically, 50 independent replications (seeds 0 through 49) were run for both the
+standard and antithetic estimators at each simulation budget N. The empirical VRF is the ratio of the
+cross-replication variances of the two price estimators:
+
+$$\text{VRF}(N) = \frac{\text{Var}_{\text{standard}}(N)}{\text{Var}_{\text{antithetic}}(N)}$$
+
+Because antithetic paths require the same number of normal draws as standard paths but paired
+differently, the compute overhead is negligible. The efficiency ratio adjusts the VRF for any
+observed runtime difference, giving a work-normalised measure of gain per unit of wall-clock time.
+
+The median VRF of **2.66×** and median efficiency ratio of **2.92×** confirm that antithetic sampling
+consistently outperforms standard MC across all tested budgets. The VRF varies across N — peaking at
+**5.04×** for N = 5 000 and compressing toward 1× at very large N where both estimators are already
+highly precise — which is expected behaviour as the estimator variance becomes dominated by
+systematic rather than random components.
 
 | N | Var (Standard) | Var (Antithetic) | VRF | Efficiency Ratio |
 |--:|---------------:|-----------------:|----:|-----------------:|
@@ -158,6 +177,10 @@ Seeds `0 … 49` (50 independent replications per N). VRF = Var(standard) / Var(
 | 250 000 | 0.0008 | 0.0005 | 1.78× | 1.89× |
 
 **Median VRF: 2.66×  ·  Median efficiency ratio: 2.92×**
+
+The VRF varies across N because the gain depends on how much random noise remains to be cancelled. At moderate budgets (N = 1 000–25 000) both estimators are still far from convergence, so the negative correlation between antithetic pairs has a large noise pool to work with and the VRF is consistently above 2×, peaking at 5.04× for N = 5 000. At very large N (100 000+) both estimators have already converged close to the true price, the residual variance is tiny, and the two methods become nearly equally precise — compressing the VRF toward 1×. The reduction is most valuable at moderate N, indicating where the practical sweet spot is, since extremely large N is computationally expensive and delivers diminishing returns regardless of the estimator used.
+
+*Variance estimates are cross-replication sample variances over 50 independent runs per (N, method) cell.*
 
 ---
 
