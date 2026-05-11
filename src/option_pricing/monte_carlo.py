@@ -22,6 +22,8 @@ def _build_normal_draws(
     antithetic: bool,
     random_seed: int | None,
 ) -> np.ndarray:
+    """Generate a matrix of standard normal draws for Monte Carlo simulation, if antithetic=True, returns pairs of draws (z, -z) to reduce variance at no extra model-evaluation cost."""
+
     rng = np.random.default_rng(random_seed)
 
     if antithetic:
