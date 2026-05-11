@@ -20,6 +20,7 @@ Research questions addressed
 """
 
 from __future__ import annotations
+from collections import defaultdict
 
 import time
 from typing import Sequence
@@ -105,7 +106,6 @@ def run_convergence_experiment(
     rows: list[dict] = []
 
     # Per-(method, n_paths) accumulator for seed-averaged price & error
-    from collections import defaultdict
     seed_errors: dict[tuple, list[float]] = defaultdict(list)
     seed_prices: dict[tuple, list[float]] = defaultdict(list)
 
