@@ -271,3 +271,17 @@ or sub-daily grids are required for reliable estimates.
 | 128 | 0.008 | 1.3769 | [1.355, 1.398] | +0.0944 | 0.412 |
 | 252 | 0.004 | 1.3239 | [1.303, 1.345] | +0.0414 | 0.777 |
 | **504** | **0.002** | **1.2825** | **[1.262, 1.303]** | **—** | **1.659** |
+
+# Installation of the env
+
+Minimal usage (no Poetry):
+
+mamba env create -f environment.yml
+mamba activate monte-carlo
+jupyter lab
+
+Full dev workflow:
+
+mamba activate monte-carlo
+poetry install --with dev
+poetry run pytest
