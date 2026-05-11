@@ -4,6 +4,30 @@ All notable changes to this project are documented in this file.
 
 ---
 
+## [0.3.1] — 2026-05-11
+
+### Added — `src/option_pricing/black_scholes.py`
+- `_norm_pdf(x)` — standard normal PDF helper, used by all new Greeks.
+- `bs_call_delta(S0, K, T, r, sigma)` — analytical call Delta: N(d1). Handles T ≤ 0 (step function) and sigma ≤ 0 (step function on forward).
+- `bs_put_delta(S0, K, T, r, sigma)` — analytical put Delta: N(d1) − 1. Same edge cases.
+- `bs_gamma(S0, K, T, r, sigma)` — analytical Gamma (identical for call and put): N'(d1) / (S0 · σ · √T). Returns 0.0 for T ≤ 0 or sigma ≤ 0.
+- `bs_vega(S0, K, T, r, sigma)` — analytical Vega (identical for call and put): S0 · N'(d1) · √T, expressed per 1% move in vol (divided by 100). Returns 0.0 for T ≤ 0 or sigma ≤ 0.
+- `bs_call_theta(S0, K, T, r, sigma)` — analytical call Theta per calendar day: −(S0·N'(d1)·σ)/(2√T) − r·K·e^(−rT)·N(d2), divided by 365. Returns 0.0 for T ≤ 0.
+- `bs_put_theta(S0, K, T, r, sigma)` — analytical put Theta per calendar day: −(S0·N'(d1)·σ)/(2√T) + r·K·e^(−rT)·N(−d2), divided by 365. Returns 0.0 for T ≤ 0.
+- `bs_call_rho(S0, K, T, r, sigma)` — analytical call Rho per 1% move in rates: K·T·e^(−rT)·N(d2), divided by 100. Returns 0.0 for T ≤ 0.
+- `bs_put_rho(S0, K, T, r, sigma)` — analytical put Rho per 1% move in rates: −K·T·e^(−rT)·N(−d2), divided by 100. Returns 0.0 for T ≤ 0.
+
+### Changed — `src/option_pricing/black_scholes.py`
+- `_norm_cdf` and `_norm_pdf` given one-line docstrings.
+- `bs_call_delta` and `bs_put_delta` docstrings updated to include the formula (N(d1) / N(d1)−1).
+
+### Changed — `pyproject.toml`
+- Migrated from setuptools to **Poetry** (`poetry-core` build backend).
+- `[tool.poetry.dependencies]` replaces `[project.dependencies]`.
+- Dev group (`[tool.poetry.group.dev.dependencies]`) includes `pytest >=9.0.3,<10.0.0`, `pytest-cov`, and `ipykernel ^7.2.0`.
+
+---
+
 ## [0.3.0] — 2026-05-10
 
 ### Removed
