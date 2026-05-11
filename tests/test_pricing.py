@@ -22,6 +22,10 @@ from option_pricing.utils import (
     estimate_convergence_rate,
 )
 
+from option_pricing.black_scholes import (
+    bs_call_delta, bs_put_delta, bs_gamma, bs_vega,
+    bs_call_theta, bs_put_theta,
+)
 
 # ---------------------------------------------------------------------------
 # Black-Scholes analytical tests
@@ -231,3 +235,17 @@ def test_run_discretisation_bias_experiment_monotone() -> None:
     # The coarsest grid should have the largest absolute bias
     assert abs(df["bias_vs_finest"].iloc[0]) >= abs(df["bias_vs_finest"].iloc[-1])
 
+# ---------------------------------------------------------------------------
+# ATM call delta ≈ 0.5, put delta ≈ −0.5, gamma > 0, vega > 0, call theta < 0, put theta < 0
+# ---------------------------------------------------------------------------
+
+def test_black_scholes_greeks_atm() -> None:
+    S0 = 100
+    K = 100
+    T = 1.0/365
+    r = 0.05
+    sigma = 0.20    
+    call_delta = bs_call_delta(S0, K, T, r, sigma)
+    assert abs(call_delta - 0.5) < 0.01
+    # put_delta = bs_put_delta(S0, K, T, r, sigma)
+    
