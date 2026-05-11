@@ -272,7 +272,7 @@ or sub-daily grids are required for reliable estimates.
 | 252 | 0.004 | 1.3239 | [1.303, 1.345] | +0.0414 | 0.777 |
 | **504** | **0.002** | **1.2825** | **[1.262, 1.303]** | **—** | **1.659** |
 
-# Installation of the env
+# Installation guidelines of the env
 
 Minimal usage (no Poetry):
 
