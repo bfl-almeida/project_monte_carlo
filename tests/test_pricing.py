@@ -2,6 +2,7 @@ import math
 
 import pandas as pd
 import pytest
+from time import perf_counter
 
 from option_pricing.black_scholes import bs_call_price, bs_put_price
 from option_pricing.experiments import (
@@ -150,13 +151,13 @@ def test_efficiency_ratio_antithetic_greater_than_one() -> None:
     kwargs = dict(S0=100, K=100, T=1.0, r=0.05, sigma=0.2,
                   option_type="call", n_paths=50_000)
 
-    t0 = __import__("time").perf_counter()
+    t0 = perf_counter()
     r_std = mc_european_option_price(**kwargs, antithetic=False, random_seed=10)
-    t_std = __import__("time").perf_counter() - t0
+    t_std = perf_counter() - t0
 
-    t0 = __import__("time").perf_counter()
+    t0 = perf_counter()
     r_anti = mc_european_option_price(**kwargs, antithetic=True, random_seed=10)
-    t_anti = __import__("time").perf_counter() - t0
+    t_anti = perf_counter() - t0
 
     eff = efficiency_ratio(r_std, r_anti, t_std, t_anti)
     assert eff > 0.5, f"Suspiciously low efficiency ratio: {eff:.3f}"
