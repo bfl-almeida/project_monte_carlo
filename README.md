@@ -277,11 +277,15 @@ or sub-daily grids are required for reliable estimates.
 Minimal usage (no Poetry):
 
 mamba env create -f environment.yml
+
 mamba activate monte-carlo
+
 jupyter lab
 
 Full dev workflow:
 
 mamba activate monte-carlo
+
 poetry install --with dev
+
 poetry run pytest
