@@ -4,7 +4,42 @@ All notable changes to this project are documented in this file.
 
 ---
 
+## [Unreleased]
+
+### Changed — Test Suite Structure
+- **Renamed and split `tests/test_pricing.py`:**
+  - `test_pricing.py` → `test_monte_carlo.py` (11 tests): Monte Carlo pricing, convergence, CI, experiments.
+  - `test_pricing.py` → `test_black_scholes.py` (30 tests, new): Analytical prices and Greeks.
+  - Mirrors source module structure (`black_scholes.py`, `monte_carlo.py`) for clarity.
+
+### Added — Quantitative Greek Tests (`tests/test_black_scholes.py`)
+- **Exact reference values** (10 tests): Each Greek and price locked to known-good values via `scipy.stats.norm`.
+  - `test_bs_call_price_exact_reference`, `test_bs_put_price_exact_reference`
+  - `test_bs_call_delta_exact_reference`, `test_bs_put_delta_exact_reference`
+  - `test_bs_gamma_exact_reference`, `test_bs_vega_exact_reference`
+  - `test_bs_call_theta_exact_reference`, `test_bs_put_theta_exact_reference`
+  - `test_bs_call_rho_exact_reference`, `test_bs_put_rho_exact_reference`
+- **Parametrized property tests** (15 tests): Qualitative invariants (sign, parity, monotonicity) across multiple input sets.
+  - `test_bs_gamma_always_positive` (3 parameter sets: ATM/OTM/ITM)
+  - `test_bs_vega_always_positive` (3 parameter sets)
+  - `test_bs_call_theta_negative` (3 parameter sets)
+  - `test_bs_put_theta_negative` (2 parameter sets: ATM and ITM; OTM put theta can be positive)
+  - `test_bs_delta_parity` (3 diverse parameter sets)
+- **Edge case tests** (5 tests): T ≤ 0, sigma ≤ 0, zero-vol step functions, ATM short-dated.
+
+### Changed — Test Assertions
+- All numeric comparisons now use `pytest.approx()` with explicit tolerances instead of manual `abs()` checks.
+- Improves error messages on failure and makes tolerances explicit.
+
+### Changed — Test Documentation
+- Added docstrings to all test functions explaining intent.
+- Organized test files into logical sections with clear headers.
+- Reference parameters stored in module-level constant (`REF_PARAMS`) to reduce repetition.
+
+---
+
 ## [0.3.1] — 2026-05-11
+
 
 ### Added — `src/option_pricing/black_scholes.py`
 - `_norm_pdf(x)` — standard normal PDF helper, used by all new Greeks.
