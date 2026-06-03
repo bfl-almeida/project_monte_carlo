@@ -5,7 +5,8 @@ description = "Monte Carlo methods for derivative pricing and variance reduction
 readme = "README.md"
 
 packages = [
-    { include = "option_pricing", from = "src" }
+    { include = "option_pricing", from = "src" },
+    { include = "research", from = "src" }
 ]
 
 [tool.poetry.dependencies]
