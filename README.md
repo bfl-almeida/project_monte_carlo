@@ -14,10 +14,11 @@ The goal is to demonstrate practical skills relevant to quantitative finance rol
 
 - Analytical Black-Scholes pricing for European calls and puts
 - Monte Carlo pricing for European options
+- Finite-difference Monte Carlo Greeks (Delta, Gamma, Vega, Theta) with Common Random Numbers
 - Confidence intervals and convergence analysis
 - Variance reduction with antithetic variates
 - Statistical metrics per experiment: absolute error, relative error, standard error, confidence intervals, runtime
-- Greeks estimation using analytical formulas and finite differences — in progress
+- Analytical Black-Scholes Greeks (Delta, Gamma, Vega, Theta, Rho)
 - Barrier option pricing — in progress
 - Unit tests with pytest
 
@@ -44,6 +45,7 @@ It is designed as an educational quantitative finance library, not as a producti
 |---|---|
 | Black-Scholes (analytical) | Closed-form price for European calls and puts |
 | Standard Monte Carlo | i.i.d. GBM terminal-price simulation |
+| Finite-Difference Greeks (CRN) | Bump-and-revalue Delta/Gamma/Vega/Theta via central differences with common random numbers |
 | Antithetic Variates | Paired ±Z draws; cuts variance roughly in half for smooth payoffs |
 | Path Simulation | Full GBM path discretisation for path-dependent contracts |
 | Barrier Options | Up-and-out / down-and-out knock-out payoffs |
@@ -68,11 +70,12 @@ monte-carlo-option-pricing/
 │  └─ option_pricing/
 │     ├─ __init__.py
 │     ├─ black_scholes.py      # Analytical BS prices and Greeks
-│     ├─ monte_carlo.py        # Simulation engine (European + barrier)
+│     ├─ monte_carlo.py        # Simulation engine + finite-difference MC Greeks
 │     ├─ experiments.py        # Reproducible research experiments
 │     └─ utils.py              # Statistical helpers, convergence table
 ├─ tests/
-│  └─ test_pricing.py
+│  ├─ test_black_scholes.py
+│  └─ test_monte_carlo.py
 ├─ notebooks/
 │  └─ research_demo.ipynb
 └─ reports/
