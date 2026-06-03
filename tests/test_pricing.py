@@ -240,12 +240,46 @@ def test_run_discretisation_bias_experiment_monotone() -> None:
 # ---------------------------------------------------------------------------
 
 def test_black_scholes_greeks_atm() -> None:
-    S0 = 100
-    K = 100
-    T = 1.0/365
+    """ATM call delta ≈ 0.5 for a short-dated option (d1 → 0 as T → 0)."""
+    S0 = 100.0
+    K = 100.0
+    T = 1.0 / 365  # short-dated: drift term is negligible, d1 ≈ 0
     r = 0.05
-    sigma = 0.20    
+    sigma = 0.20
     call_delta = bs_call_delta(S0, K, T, r, sigma)
     assert abs(call_delta - 0.5) < 0.01
-    # put_delta = bs_put_delta(S0, K, T, r, sigma)
-    
+
+
+def test_black_scholes_gamma_positive() -> None:
+    """Gamma is always positive for both calls and puts."""
+    S0, K, T, r, sigma = 100.0, 100.0, 1.0, 0.05, 0.20
+    assert bs_gamma(S0, K, T, r, sigma) > 0.0
+    # Also check OTM and ITM
+    assert bs_gamma(100.0, 120.0, 1.0, 0.05, 0.20) > 0.0
+    assert bs_gamma(100.0, 80.0, 1.0, 0.05, 0.20) > 0.0
+
+
+def test_black_scholes_vega_positive() -> None:
+    """Vega is always positive for both calls and puts."""
+    S0, K, T, r, sigma = 100.0, 100.0, 1.0, 0.05, 0.20
+    assert bs_vega(S0, K, T, r, sigma) > 0.0
+    assert bs_vega(100.0, 120.0, 1.0, 0.05, 0.20) > 0.0
+    assert bs_vega(100.0, 80.0, 1.0, 0.05, 0.20) > 0.0
+
+
+def test_black_scholes_theta_negative_long_options() -> None:
+    """Theta is always negative for long calls and puts (time decay)."""
+    S0, K, T, r, sigma = 100.0, 100.0, 1.0, 0.05, 0.20
+    assert bs_call_theta(S0, K, T, r, sigma) < 0.0
+    assert bs_put_theta(S0, K, T, r, sigma) < 0.0
+
+
+def test_black_scholes_delta_put_call_parity() -> None:
+    """Put-call parity for Delta: call_delta - put_delta == 1.0 exactly."""
+    for S0, K, T, r, sigma in [
+        (100.0, 100.0, 1.0, 0.05, 0.20),
+        (100.0, 80.0, 0.5, 0.02, 0.30),
+        (100.0, 120.0, 2.0, 0.01, 0.15),
+    ]:
+        diff = bs_call_delta(S0, K, T, r, sigma) - bs_put_delta(S0, K, T, r, sigma)
+        assert abs(diff - 1.0) < 1e-12, f"Delta parity failed: {diff}"
