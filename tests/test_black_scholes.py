@@ -78,26 +78,26 @@ def test_bs_vega_exact_reference() -> None:
 
 
 def test_bs_call_theta_exact_reference() -> None:
-    """Call theta at canonical point (per calendar day)."""
+    """Call theta at canonical point (per trading day)."""
     result = bs_call_theta(**REF_PARAMS)
-    # theta_call = [-(S0*N'(d1)*sigma)/(2*sqrt(T)) - r*K*exp(-r*T)*N(d2)] / 365
+    # theta_call = [-(S0*N'(d1)*sigma)/(2*sqrt(T)) - r*K*exp(-r*T)*N(d2)] / 252
     d1 = 0.35
     d2 = 0.15
     decay = -100.0 * norm.pdf(d1) * 0.20 / (2.0 * 1.0)
     carry = -0.05 * 100.0 * math.exp(-0.05 * 1.0) * norm.cdf(d2)
-    expected = (decay + carry) / 365.0
+    expected = (decay + carry) / 252.0
     assert result == pytest.approx(expected, abs=1e-12)
 
 
 def test_bs_put_theta_exact_reference() -> None:
-    """Put theta at canonical point (per calendar day)."""
+    """Put theta at canonical point (per trading day)."""
     result = bs_put_theta(**REF_PARAMS)
-    # theta_put = [-(S0*N'(d1)*sigma)/(2*sqrt(T)) + r*K*exp(-r*T)*N(-d2)] / 365
+    # theta_put = [-(S0*N'(d1)*sigma)/(2*sqrt(T)) + r*K*exp(-r*T)*N(-d2)] / 252
     d1 = 0.35
     d2 = 0.15
     decay = -100.0 * norm.pdf(d1) * 0.20 / (2.0 * 1.0)
     carry = 0.05 * 100.0 * math.exp(-0.05 * 1.0) * norm.cdf(-d2)
-    expected = (decay + carry) / 365.0
+    expected = (decay + carry) / 252.0
     assert result == pytest.approx(expected, abs=1e-12)
 
 

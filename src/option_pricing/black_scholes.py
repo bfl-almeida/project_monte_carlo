@@ -78,25 +78,25 @@ def bs_vega(S0: float, K: float, T: float, r: float, sigma: float) -> float:
 
 
 def bs_call_theta(S0: float, K: float, T: float, r: float, sigma: float) -> float:
-    """Black-Scholes Theta for a European call option, per calendar day: -(S0*N'(d1)*sigma)/(2*sqrt(T)) - r*K*exp(-rT)*N(d2), divided by 365."""
+    """Black-Scholes Theta for a European call option, per trading day: -(S0*N'(d1)*sigma)/(2*sqrt(T)) - r*K*exp(-rT)*N(d2), divided by 252."""
     if T <= 0:
         return 0.0
     d1 = (math.log(S0 / K) + (r + 0.5 * sigma**2) * T) / (sigma * math.sqrt(T))
     d2 = d1 - sigma * math.sqrt(T)
     decay = -S0 * _norm_pdf(d1) * sigma / (2.0 * math.sqrt(T))
     carry = -r * K * math.exp(-r * T) * _norm_cdf(d2)
-    return (decay + carry) / 365.0
+    return (decay + carry) / 252.0
 
 
 def bs_put_theta(S0: float, K: float, T: float, r: float, sigma: float) -> float:
-    """Black-Scholes Theta for a European put option, per calendar day: -(S0*N'(d1)*sigma)/(2*sqrt(T)) + r*K*exp(-rT)*N(-d2), divided by 365."""
+    """Black-Scholes Theta for a European put option, per trading day: -(S0*N'(d1)*sigma)/(2*sqrt(T)) + r*K*exp(-rT)*N(-d2), divided by 252."""
     if T <= 0:
         return 0.0
     d1 = (math.log(S0 / K) + (r + 0.5 * sigma**2) * T) / (sigma * math.sqrt(T))
     d2 = d1 - sigma * math.sqrt(T)
     decay = -S0 * _norm_pdf(d1) * sigma / (2.0 * math.sqrt(T))
     carry = r * K * math.exp(-r * T) * _norm_cdf(-d2)
-    return (decay + carry) / 365.0
+    return (decay + carry) / 252.0
 
 
 def bs_call_rho(S0: float, K: float, T: float, r: float, sigma: float) -> float:

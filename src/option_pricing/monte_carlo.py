@@ -161,7 +161,7 @@ def mc_european_option_greeks(
     delta = (spot_up - spot_down) / (2 * h)
     gamma = (spot_up - 2 * base + spot_down) / h ** 2
     vega  = (vol_up - vol_down) / (2 * dv) / 100
-    theta = ((theta_price - base) / dt) / 365.0
+    theta = (theta_price - base) / dt / 252.0
 
     return MonteCarloGreeks(
         delta=delta,
