@@ -12,7 +12,13 @@ import pandas as pd
 import pytest
 from time import perf_counter
 
-from option_pricing.black_scholes import bs_call_price
+from option_pricing.black_scholes import (
+    bs_call_delta,
+    bs_call_price,
+    bs_call_theta,
+    bs_gamma,
+    bs_vega,
+)
 from option_pricing.experiments import (
     run_ci_coverage_experiment,
     run_convergence_experiment,
@@ -21,6 +27,7 @@ from option_pricing.experiments import (
 )
 from option_pricing.monte_carlo import (
     mc_barrier_option_price,
+    mc_european_option_greeks,
     mc_european_option_price,
 )
 from option_pricing.utils import (
@@ -29,6 +36,9 @@ from option_pricing.utils import (
     efficiency_ratio,
     estimate_convergence_rate,
 )
+
+
+ATM_PARAMS = dict(S0=100.0, K=100.0, T=1.0, r=0.05, sigma=0.20)
 
 
 # ============================================================================
@@ -93,6 +103,81 @@ def test_barrier_option_not_more_expensive_than_vanilla() -> None:
 
     assert barrier.price <= vanilla.price
     assert barrier.price >= 0.0
+
+
+# ============================================================================
+# Finite-Difference Greeks (Step 2)
+# ============================================================================
+
+def test_mc_delta_vs_analytical() -> None:
+    """MC Delta via CRN central difference should match BS Delta within 0.01."""
+    mc = mc_european_option_greeks(
+        **ATM_PARAMS,
+        option_type="call",
+        n_paths=200_000,
+        random_seed=42,
+    )
+    analytical = bs_call_delta(**ATM_PARAMS)
+    assert mc.delta == pytest.approx(analytical, abs=0.01)
+
+
+def test_mc_gamma_vs_analytical() -> None:
+    """MC Gamma should match BS Gamma within 0.005."""
+    mc = mc_european_option_greeks(
+        **ATM_PARAMS,
+        option_type="call",
+        n_paths=200_000,
+        random_seed=42,
+    )
+    analytical = bs_gamma(**ATM_PARAMS)
+    assert mc.gamma == pytest.approx(analytical, abs=0.005)
+
+
+def test_mc_vega_vs_analytical() -> None:
+    """MC Vega (per 1 vol point) should match BS Vega within 0.05."""
+    mc = mc_european_option_greeks(
+        **ATM_PARAMS,
+        option_type="call",
+        n_paths=200_000,
+        random_seed=42,
+    )
+    analytical = bs_vega(**ATM_PARAMS)
+    assert mc.vega == pytest.approx(analytical, abs=0.05)
+
+
+def test_mc_theta_vs_analytical() -> None:
+    """MC Theta (per calendar day) should match BS Theta within 0.05."""
+    mc = mc_european_option_greeks(
+        **ATM_PARAMS,
+        option_type="call",
+        n_paths=200_000,
+        random_seed=42,
+    )
+    analytical = bs_call_theta(**ATM_PARAMS)
+    assert mc.theta == pytest.approx(analytical, abs=0.05)
+
+
+def test_mc_greeks_call_delta_in_range() -> None:
+    """Call Delta must be in (0, 1) for any valid input."""
+    mc = mc_european_option_greeks(
+        **ATM_PARAMS,
+        option_type="call",
+        n_paths=200_000,
+        random_seed=42,
+    )
+    assert 0.0 < mc.delta < 1.0
+
+
+@pytest.mark.parametrize("option_type", ["call", "put"])
+def test_mc_greeks_gamma_positive(option_type: str) -> None:
+    """Gamma is always positive for both calls and puts."""
+    mc = mc_european_option_greeks(
+        **ATM_PARAMS,
+        option_type=option_type,
+        n_paths=200_000,
+        random_seed=42,
+    )
+    assert mc.gamma > 0.0
 
 
 # ============================================================================
