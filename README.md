@@ -87,7 +87,7 @@ monte-carlo-option-pricing/
 
 ```python
 from option_pricing import mc_european_option_price, bs_call_price
-from option_pricing.experiments import run_convergence_experiment
+from research.experiments import run_convergence_experiment
 
 # Analytical benchmark
 price = bs_call_price(S0=100, K=100, T=1, r=0.05, sigma=0.2)
@@ -106,7 +106,7 @@ print(df.to_string(index=False))
 
 ## Key Results
 
-All experiments are fully reproducible via `src/option_pricing/experiments.py`.
+All experiments are fully reproducible via `src/research/experiments.py`.
 Base parameters unless noted: S₀ = K = 100, T = 1 yr, r = 5 %, σ = 20 %.
 Analytical benchmark (Black-Scholes call): **10.4506**.
 

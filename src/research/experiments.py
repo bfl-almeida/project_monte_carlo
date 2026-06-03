@@ -28,13 +28,13 @@ from typing import Sequence
 import numpy as np
 import pandas as pd
 
-from ..option_pricing.black_scholes import bs_call_price, bs_put_price
-from ..option_pricing.monte_carlo import (
+from option_pricing.black_scholes import bs_call_price, bs_put_price
+from option_pricing.monte_carlo import (
     MonteCarloResult,
     mc_barrier_option_price,
     mc_european_option_price,
 )
-from ..option_pricing.utils import confidence_interval, estimate_convergence_rate
+from option_pricing.utils import confidence_interval, estimate_convergence_rate
 
 
 # ---------------------------------------------------------------------------

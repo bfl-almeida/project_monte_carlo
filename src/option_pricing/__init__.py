@@ -1,9 +1,3 @@
-from ..research.experiments import (
-    run_ci_coverage_experiment,
-    run_convergence_experiment,
-    run_discretisation_bias_experiment,
-    run_variance_reduction_experiment,
-)
 from .utils import (
     confidence_interval,
     convergence_table,
@@ -34,9 +28,4 @@ __all__ = [
     "efficiency_ratio",
     "estimate_convergence_rate",
     "convergence_table",
-    # Research experiments
-    "run_convergence_experiment",
-    "run_variance_reduction_experiment",
-    "run_ci_coverage_experiment",
-    "run_discretisation_bias_experiment",
 ]
