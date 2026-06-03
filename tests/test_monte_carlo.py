@@ -19,7 +19,7 @@ from option_pricing.black_scholes import (
     bs_gamma,
     bs_vega,
 )
-from option_pricing.experiments import (
+from research.experiments import (
     run_ci_coverage_experiment,
     run_convergence_experiment,
     run_discretisation_bias_experiment,
