@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "monte-carlo-option-pricing"
-version = "0.3.0"
+version = "0.4.0"
 description = "Monte Carlo methods for derivative pricing and variance reduction — a quantitative research study"
 readme = "README.md"
 

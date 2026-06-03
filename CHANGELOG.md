@@ -4,7 +4,7 @@ All notable changes to this project are documented in this file.
 
 ---
 
-## [Unreleased]
+## [0.4.0] — 2026-06-03
 
 ### Changed — Test Suite Structure
 - **Renamed and split `tests/test_pricing.py`:**
@@ -35,6 +35,34 @@ All notable changes to this project are documented in this file.
 - Added docstrings to all test functions explaining intent.
 - Organized test files into logical sections with clear headers.
 - Reference parameters stored in module-level constant (`REF_PARAMS`) to reduce repetition.
+
+### Added — Step 2: Finite-Difference Greeks (`src/option_pricing/monte_carlo.py`)
+- **`MonteCarloGreeks` dataclass:** Holds delta, gamma, vega (per 1% vol), theta (per trading day), n_paths, random_seed.
+- **`mc_european_option_greeks()` function:** Computes finite-difference Greeks via bump-and-revalue using Common Random Numbers (CRN).
+  - Uses central differences (O(h²) truncation error) for all Greeks.
+  - Bump sizes: Delta/Gamma h = 0.01 × S₀; Vega dv = 0.01; Theta dt = 1/252 (one trading day).
+  - Antithetic variates disabled to preserve CRN integrity.
+  - Theta returned per trading day (252-day standard) to match Black-Scholes conventions in this project.
+  - Documents key decision: central differences vs forward, CRN preservation, and vega market convention (per 1 vol point).
+
+### Changed — Theta Convention (Step 2)
+- **Standardized to 252 trading days per year** across entire codebase for consistency with market convention.
+- `bs_call_theta()` and `bs_put_theta()` now divide by `/252` instead of `/365` — theta expressed per trading day.
+- `mc_european_option_greeks()` theta now correctly scaled per trading day by dividing annualized finite-difference by 252.
+- Updated all references in docstrings, tests, and CHANGELOG to reflect 252-day standard.
+
+### Added — Step 2 Greek Validation Tests (`tests/test_monte_carlo.py`)
+- `test_mc_delta_vs_analytical()` — MC Delta converges to BS Delta within 0.01 at N=200k.
+- `test_mc_gamma_vs_analytical()` — MC Gamma converges to BS Gamma within 0.005.
+- `test_mc_vega_vs_analytical()` — MC Vega (per 1 vol point) converges to BS Vega within 0.05.
+- `test_mc_theta_vs_analytical()` — MC Theta (per calendar day) converges to BS Theta within 0.05.
+- `test_mc_greeks_call_delta_in_range()` — Call Delta ∈ (0, 1) structural check.
+- `test_mc_greeks_gamma_positive[call|put]()` — Gamma > 0 for both calls and puts (parametrized).
+
+### Updated — README
+- Feature list now includes "Finite-difference Monte Carlo Greeks (Delta, Gamma, Vega, Theta) with Common Random Numbers".
+- Methods table adds "Finite-Difference Greeks (CRN): Bump-and-revalue Delta/Gamma/Vega/Theta via central differences with common random numbers".
+- Project structure updated to show both `test_black_scholes.py` and `test_monte_carlo.py`.
 
 ---
 
