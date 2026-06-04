@@ -13,12 +13,12 @@ The goal is to demonstrate practical skills relevant to quantitative finance rol
 ## Features
 
 - Analytical Black-Scholes pricing for European calls and puts
+- Analytical Black-Scholes Greeks (Delta, Gamma, Vega, Theta, Rho)
 - Monte Carlo pricing for European options
 - Finite-Difference Greeks (CRN) Bump-and-revalue Delta/Gamma/Vega via central differences; Theta via one-trading-day time decay.
 - Confidence intervals and convergence analysis
 - Variance reduction with antithetic variates
 - Statistical metrics per experiment: absolute error, relative error, standard error, confidence intervals, runtime
-- Analytical Black-Scholes Greeks (Delta, Gamma, Vega, Theta, Rho)
 - Barrier option pricing
 - Unit tests with pytest
 
@@ -36,12 +36,13 @@ It is designed as an educational quantitative finance library, not as a producti
    for European and barrier options, and what is the efficiency gain per unit of compute?
 3. **Confidence Interval Coverage** — Do the 95 % asymptotic CIs based on the CLT achieve
    their nominal coverage across a realistic parameter grid?
+   CI coverage results (91–93% empirical vs 95% nominal) available in research_demo.ipynb.
 4. **Discretisation Bias in Barrier Options** — How does path resolution (number of time
    steps) affect the knock-out probability and the resulting pricing bias?
 5. **MC Greek Convergence** — Do finite-difference MC Greeks converge to analytical BS Greeks
    at the expected O(N⁻¹/²) rate, and what simulation budget is required for each Greek?
 6. **Common Random Numbers** — How much does CRN reduce variance in bump-and-revalue Greeks,
-   and is it strictly necessary for second derivatives (Gamma, Theta)?
+   and is it strictly necessary for second derivatives like Gamma?
 7. **P&L Attribution** — How accurately do Delta and Delta+Gamma Taylor expansions track
    option P&L across a range of spot moves?
 
@@ -51,8 +52,9 @@ It is designed as an educational quantitative finance library, not as a producti
 |---|---|
 | Black-Scholes (analytical) | Closed-form price for European calls and puts |
 | Standard Monte Carlo | i.i.d. GBM terminal-price simulation |
-| Finite-Difference Greeks (CRN) | Bump-and-revalue Delta/Gamma/Vega/Theta via central differences with common random numbers |
+| Finite-Difference Greeks | Bump-and-revalue Delta/Gamma/Vega via central differences; Theta via one-trading-day time decay |
 | Antithetic Variates | Paired ±Z draws; cuts variance roughly in half for smooth payoffs |
+| Common Random Numbers (CRN) | Same random seed reused across base and bumped pricing calls; cancels correlated noise in finite-difference Greeks (VRF up to ~430,000× for Theta) |
 | Path Simulation | Full GBM path discretisation for path-dependent contracts |
 | Barrier Options | Up-and-out / down-and-out knock-out payoffs |
 
@@ -96,7 +98,7 @@ monte-carlo-option-pricing/
 
 **`research_demo.ipynb`** — Core experiments: convergence at O(N⁻¹/²), variance reduction effectiveness (antithetic VRF ≈ 2.66×), CI coverage (91–93 % empirical vs 95 % nominal), and discretisation bias in barrier options (O(1/√n_steps) convergence).
 
-**`research_demo_greeks.ipynb`** — Seven experiments on finite-difference Greek estimation: Greek profiles vs spot and maturity, convergence to BS benchmarks under antithetic vs plain MC, log-log convergence rate, bump size sensitivity across multiple orders of magnitude, CRN effectiveness (VRF > 1000× for Gamma/Theta), and P&L attribution using Delta + ½Γ·ΔS² Taylor expansion.
+**`research_demo_greeks.ipynb`** — Seven experiments on finite-difference Greek estimation: Greek profiles vs spot and maturity, convergence to BS benchmarks under antithetic vs plain MC, log-log convergence rate, bump size sensitivity across multiple orders of magnitude, CRN effectiveness (VRF up to 400 000× for Theta), and P&L attribution using Delta + ½Γ·ΔS² Taylor expansion.
 
 ## Quickstart
 
@@ -135,12 +137,12 @@ print(df.to_string(index=False))
 All experiments are reproducible from `src/research/experiments.py` and the two demo 
 notebooks. Base parameters unless noted: S₀ = K = 100, T = 1 yr, r = 5 %, σ = 20 %. 
 Analytical Black-Scholes benchmark:
-European call price: **10.4506**.
-European call delta: 0.636831
-European call theta: -0.025452
-European gamma: 0.018762
-European vega: 0.375240
-Put-call parity residual: 0.00e+00
+European call price: **10.4506**
+European call delta: **0.636831**
+European call theta: **−0.025452**
+European gamma: **0.018762**
+European vega: **0.375240**
+Put-call parity residual: **0.00e+00**
 
 ---
 
@@ -206,7 +208,7 @@ Two variance reduction techniques are implemented and benchmarked in this projec
 Both carry **zero compute overhead** — they are seed and draw-management choices, 
 not resource tradeoffs. Their effectiveness, however, is calibrated to very 
 different problems: antithetic variates deliver a modest ~2× gain on smooth 
-European payoffs, while Common Random Numbers (CRN) deliver up to **~100 000×** 
+European payoffs, while Common Random Numbers (CRN) deliver up to **~400 000×** 
 variance reduction on finite-difference Greeks.
 
 #### 3A · Antithetic Variates — European Options
@@ -261,6 +263,7 @@ result is divided by dt ≈ 1/252, amplifying residual noise by 252×.
 **Practical conclusion:** no risk system should compute finite-difference Greeks 
 without CRN, and antithetic variates should be enabled by default for vanilla 
 European option pricing at moderate path counts.
+
 ---
 
 ### 4 · P&L Attribution — Delta-Gamma Taylor Expansion
@@ -291,21 +294,36 @@ Gamma together explain the bulk of daily option P&L, and the residual is the
 "unexplained" bucket attributed to Vega, Theta, and higher-order sensitivities.
 
 
----
-# Installation guidelines of the env
+
+## Roadmap
+
+1. **Implied volatility solver** — Brent's method to invert Black-Scholes and 
+   recover implied vols from market option prices
+2. **Real market data** — SPY option chains via yfinance, implied volatility 
+   smile, analytical Greeks on real strikes
+3. **Historical P&L attribution** — extend Experiment 7 to a real one-month 
+   SPY position using daily market moves
+4. **Historical VaR with Kupiec backtest** — 99% one-day VaR on an option 
+   portfolio, validated under Basel traffic-light criteria
+
+
+
+
+
+## Installation
 
 **Minimal usage (no Poetry):**
 
+```bash
 mamba env create -f environment.yml
-
 mamba activate monte-carlo
-
 jupyter lab
+```
 
 **Full dev workflow:**
 
+```bash
 mamba activate monte-carlo
-
 poetry install --with dev
-
 poetry run pytest
+```
