@@ -4,7 +4,27 @@ All notable changes to this project are documented in this file.
 
 ---
 
-## [0.4.0] — 2026-06-03
+## [0.4.0] — 2026-06-04
+
+### Fixed — Public API: Missing Exports in `src/option_pricing/__init__.py`
+- **`mc_european_option_greeks` and `MonteCarloGreeks`** were absent from `__init__.py`, causing the README Quickstart to raise `ImportError` on `from option_pricing import mc_european_option_greeks`.
+- **All eight analytical Greeks** (`bs_call_delta`, `bs_put_delta`, `bs_gamma`, `bs_vega`, `bs_call_theta`, `bs_put_theta`, `bs_call_rho`, `bs_put_rho`) were also missing from the public surface, forcing users to import from the internal `black_scholes` module directly.
+- Added all ten symbols to both the import statements and `__all__` in `__init__.py`. All 48 tests continue to pass.
+
+### Fixed — `mc_european_option_greeks` Theta Formula (`src/option_pricing/monte_carlo.py`)
+- **Removed redundant scaling** in the Theta calculation: `theta = (theta_price - base) / dt / 252.0` → `theta = theta_price - base`.
+  - `dt = 1/252`, so `/(1/252)/252 = ×252/252 = ×1` — the old formula was mathematically equivalent but obscured intent.
+  - Theta is and was always the one-trading-day P&L `V(T − 1/252) − V(T)`; the formula now reads as such directly.
+- **Added input validation guard:** raises `ValueError("Theta estimation requires T > 1/252.")` when `T ≤ dt`, preventing a silent negative-T pricing call.
+- **Updated docstring:** antithetic sampling may now be enabled in `mc_european_option_greeks`; removed the previous blanket "antithetic variates are disabled" note. The constraint is that the same `antithetic` flag must be passed consistently across all bumped pricing calls (already enforced by the shared `_price()` closure).
+
+### Fixed — Standard Error for Antithetic Estimator (`src/option_pricing/monte_carlo.py`)
+- **`mc_european_option_price()` and `mc_barrier_option_price()`:** Corrected standard error computation when `antithetic=True`.
+  - **Before (incorrect):** `std(discounted) / sqrt(2h)` — treated all `2h` payoffs as independent, ignoring the negative correlation between antithetic pairs. This *over-estimated* the SE by a factor of `1/sqrt(1 + ρ)` where `ρ < 0`.
+  - **After (correct):** SE is computed over the `h` pair means `Wᵢ = ½(V(zᵢ) + V(−zᵢ))`, which are i.i.d.: `std(pair_means) / sqrt(h)`.
+  - The **price** is unaffected (mean is invariant to pairing).
+  - Empirical validation at N = 100 000 (ATM call): SE ratio standard/antithetic = **1.41×** ≈ √2, consistent with ρ ≈ −0.5 for ATM call payoffs.
+  - Impact on experiments: CIs in Experiment 3 (coverage) and Experiment 2 (efficiency ratio via CI width) are now narrower and correctly reflect the actual estimator variance. The cross-replication VRF in Experiment 2 is unaffected (it uses variance of prices across replications, not the internal SE).
 
 ### Changed — Test Suite Structure
 - **Renamed and split `tests/test_pricing.py`:**
