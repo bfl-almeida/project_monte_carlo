@@ -205,8 +205,11 @@ sub-daily grids are required for reliable estimates.
 ### 3 · Variance Reduction Methods
 
 Two variance reduction techniques are implemented and benchmarked in this project. 
-Both carry **zero compute overhead** — they are seed and draw-management choices, 
-not resource tradeoffs. Their effectiveness, however, is calibrated to very 
+Both have negligible implementation overhead: they are mainly draw-management choices
+rather than changes to the pricing model. CRN has no additional pricing calls relative 
+to standard bump-and-revalue, while antithetic variates preserve the same total path
+budget by pairing Z and −Z.
+Their effectiveness, however, is calibrated to very 
 different problems: antithetic variates deliver a modest ~2× gain on smooth 
 European payoffs, while Common Random Numbers (CRN) deliver up to **~400 000×** 
 variance reduction on finite-difference Greeks.
@@ -214,10 +217,11 @@ variance reduction on finite-difference Greeks.
 #### 3A · Antithetic Variates — European Options
 
 Antithetic variates pair each draw Z with its mirror −Z, producing negatively 
-correlated path pairs whose payoffs partially cancel each other's noise. For 
-smooth, monotone payoffs such as European calls, the theoretical Variance 
-Reduction Factor (VRF) approaches 2× as the payoff-to-draw correlation 
-approaches −1.
+correlated path pairs whose payoffs partially cancel each other's noise.
+For antithetic variates, the variance reduction factor is approximately 1 / (1 + ρ), 
+where ρ is the correlation between paired payoffs f(Z) and f(−Z).
+Stronger negative correlation produces larger variance reduction;
+for European calls in this setup, the empirical median VRF is around 2.66×.
 
 ![Antithetic VRF across simulation budgets](reports/figures/antithetic_vrf.png)
 
@@ -239,8 +243,8 @@ The apparent compression toward 1× should therefore be interpreted cautiously.
 Finite-difference Greeks subtract near-equal MC prices, so the signal (the true 
 derivative) is small relative to the independent sampling noise of order σ/√N. 
 With CRN — reusing the same random seed across the base and all bumped pricing 
-calls — the same paths experience the parameter bump, the noise is fully 
-correlated, and it cancels in the difference, leaving only the true sensitivity.
+calls — the same paths experience the parameter bump, making the two pricing
+estimates highly correlated and allowing most of the pathwise noise to cancel.
 
 ![CRN effectiveness across all four Greeks](reports/figures/crn_effectiveness.png)
 
@@ -249,20 +253,24 @@ Delta, 105× for Vega, 60,312× for Gamma, and 432,756× for Theta**.
 Without CRN, Gamma estimates scatter from −0.2 to +0.5 against a true value of 0.01876, and Theta
 estimates scatter from −0.17 to +0.17 against a true value of −0.02545 — essentially pure noise
 relative to the signal.
-Theta shows the most extreme VRF because two effects compound: its numerator subtracts 
-prices at nearly identical maturities (smallest signal of any Greek), and the 
-result is divided by dt ≈ 1/252, amplifying residual noise by 252×.
+Theta shows the most extreme VRF because it is estimated as the difference between prices at nearly
+identical maturities. Without CRN, this small one-day decay is dominated by independent Monte Carlo
+noise from the two pricing runs. With CRN, the two price estimates are computed from the same random
+draws, making them highly correlated and allowing most of the pathwise noise to cancel. If Theta
+were annualized, the finite-difference quotient would divide by dt ≈ 1/252, further amplifying
+residual noise; this project reports Theta as one-trading-day decay.
 
-| Greek | True BS Value | VRF (CRN vs no CRN) |
-|-------|--------------:|--------------------:|
-| Delta | 0.6368        | 1,031×              |
-| Vega  | 0.3752        | 105×                |
-| Gamma | 0.01876       | 60,312×             |
-| Theta | −0.0255       | **432,756×**        |
+| Greek | True BS Value | Emprical VRF (CRN vs no CRN) |
+|-------|--------------:|-----------------------------:|
+| Delta | 0.6368        | 1,031×                       |
+| Vega  | 0.3752        | 105×                         |
+| Gamma | 0.01876       | 60,312×                      |
+| Theta | −0.0255       | **432,756×**                 |
 
-**Practical conclusion:** no risk system should compute finite-difference Greeks 
-without CRN, and antithetic variates should be enabled by default for vanilla 
-European option pricing at moderate path counts.
+**Practical conclusion:** finite-difference Greeks should generally be computed
+with CRN, especially for second derivatives and small time/volatility bumps.
+Antithetic variates should be enabled by default for vanilla European option
+pricing at moderate path counts.
 
 ---
 
@@ -290,9 +298,10 @@ which only becomes detectable at large moves.
 | Δ·ΔS + ½Γ·ΔS²  (D + G)     | ~$0.3                | ~2 %           |
 
 This is the empirical foundation for Delta-Gamma hedging in practice: Delta and 
-Gamma together explain the bulk of daily option P&L, and the residual is the 
-"unexplained" bucket attributed to Vega, Theta, and higher-order sensitivities.
-
+Gamma together explain the bulk of daily option P&L. In this controlled spot-move experiment,
+the remaining residual is mainly due to higher-order spot sensitivities.
+In a full daily P&L attribution framework, additional unexplained components would also include
+Vega, Theta, cross-Greeks, model error, and market-data effects.
 
 
 ## Roadmap
