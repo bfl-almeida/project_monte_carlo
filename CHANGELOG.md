@@ -67,16 +67,39 @@ All notable changes to this project are documented in this file.
 - Added Notebooks section with descriptions of `research_demo.ipynb` and `research_demo_greeks.ipynb`.
 - Added Section 5: "Monte Carlo Greek Estimation via Bump-and-Revalue" with empirical results.
 
-### Research Validation — MC Greeks Convergence and CRN Effectiveness (`research_demo_greeks.ipynb`)
-- **Greek convergence:** All four MC Greeks (Delta, Gamma, Vega, Theta) converge to analytical BS benchmarks at O(N⁻¹/²) rate. At N = 500k: all absolute errors < 10⁻³.
-- **CRN effectiveness:** Variance Reduction Factors: Delta 1,031×, Gamma 60,312×, Vega 105×, Theta 432,756×. Without CRN, second derivatives drown in noise.
-- **Bump size optimization:** First-order Greeks show L-shaped MAE with broad plateau; Gamma shows U-shaped MAE with sharper optimum. Market convention (h=0.01, dv=0.01) keeps all MAE < 10⁻³.
-- **P&L attribution:** Delta + ½Γ·ΔS² tracks actual repriced P&L within $0.3 (±$15 spot moves), vs ~$2 for Delta-only — empirical validation of Delta-Gamma hedging.
+### Added — Experiment 5: MC Greeks Convergence (`src/research/experiments.py`)
+- **`run_mc_greeks_experiment()`:** Computes Delta, Gamma, Vega, Theta via central-difference bump-and-revalue with CRN across path grid.
+  - Default grid: [1K, 5K, 10K, 50K, 100K, 200K, 500K] paths.
+  - Supports seed averaging (default n_seeds=30) for robust convergence analysis.
+  - Returns DataFrame with MC estimates, analytical benchmarks, absolute errors, and runtimes.
+- **`aggregate_greeks_experiment()`:** Helper to compute seed-averaged statistics (mean, SE, coefficient of variation) per N-level for log-log convergence plotting.
+- **Convergence validation:** All four MC Greeks converge to BS benchmarks at O(N⁻¹/²) rate; at N=500k all absolute errors < 10⁻³.
+
+### Added — Experiment 6: CRN Effectiveness (`src/research/experiments.py`)
+- **`run_crn_experiment()`:** Quantifies variance reduction from Common Random Numbers in finite-difference Greeks.
+  - Compares two strategies: CRN (same seed for base and bumped prices) vs. No CRN (independent seeds).
+  - Collects n_replications (default 100) independent estimates for each Greek.
+  - Returns dict with keys `"delta"`, `"gamma"`, `"vega"`, `"theta"`; each contains `"crn"`, `"no_crn"` arrays and `"bs"` benchmark.
+- **Variance Reduction Factors (VRF):** Delta ~1,000×, Gamma ~60,000×, Vega ~100×, Theta ~430,000×. Second derivatives require CRN to remain numerically stable.
+
+### Added — Experiment 7: P&L Attribution (`src/research/experiments.py`)
+- **`run_pnl_attribution_experiment()`:** Compares actual option P&L against first- and second-order Greek approximations.
+  - Sweeps spot moves ΔS ∈ [−ds_range, +ds_range] (default ±15) with n_points grid (default 200).
+  - Computes first-order (Δ·ΔS) and second-order (Δ·ΔS + ½Γ·ΔS²) Taylor approximations.
+  - Returns DataFrame with actual P&L, both approximations, and residuals (delta_error, delta_gamma_error).
+- **P&L accuracy:** Delta + ½Γ·ΔS² tracks repriced P&L within $0.3 at ±$15 spot moves (85% improvement over Delta-only ~$2). Empirical validation of Delta-Gamma hedging efficacy.
+
+### Research Validation — Experiments 5–7 Results (`research_demo_greeks.ipynb`)
+- **Notebook integration:** All three experiments now use reproducible library functions instead of inline code.
+- **Greek convergence:** All four MC Greeks converge O(N⁻¹/²), errors < 10⁻³ at N=500k.
+- **CRN effectiveness:** VRFs achieved: Delta 1,031×, Gamma 60,312×, Vega 105×, Theta 432,756×.
+- **Bump size sensitivity:** L-shape (Delta/Vega) vs U-shape (Gamma) patterns; market f=0.01 keeps all MAE < 10⁻³.
+- **P&L attribution:** Delta+Gamma accuracy $0.3 vs Delta-only $2 residual at ±15 moves.
 
 ### Changed — Module Organization
 - **Moved `src/option_pricing/experiments.py` → `src/research/experiments.py`** to cleanly separate reproducible research code from core library.
 - `src/option_pricing/` now contains only the pricing library (black_scholes.py, monte_carlo.py, utils.py).
-- `src/research/` holds experiment functions and demo notebooks.
+- `src/research/` holds demo notebooks, with some experiment functions inside it.
 - Updated `pyproject.toml` packages list to include both `option_pricing` and `research` as top-level packages under `src/`.
 - Updated all imports in tests, notebooks, and README to use `research.experiments`.
 
