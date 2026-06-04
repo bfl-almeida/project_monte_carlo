@@ -21,6 +21,12 @@ Research questions addressed
 5. :func:`run_mc_greeks_experiment`
    Do MC finite-difference Greeks converge to analytical Black-Scholes Greeks,
    and at what rate?
+
+6. :func:`run_crn_experiment`
+   How much does Common Random Numbers reduce variance in finite-difference Greeks?
+
+7. :func:`run_pnl_attribution_experiment`
+   How well do first- and second-order Greek expansions track option P&L?
 """
 
 from __future__ import annotations
@@ -592,3 +598,166 @@ def aggregate_greeks_experiment(df: pd.DataFrame) -> pd.DataFrame:
         agg[f"{greek}_ratio"] = agg[f"{greek}_se"] / agg[f"{greek}_mean_error"]
 
     return agg
+
+
+# ---------------------------------------------------------------------------
+# Experiment 6 — Common Random Numbers Effectiveness
+# ---------------------------------------------------------------------------
+
+def run_crn_experiment(
+    S0: float = _BASE["S0"],
+    K: float = _BASE["K"],
+    T: float = _BASE["T"],
+    r: float = _BASE["r"],
+    sigma: float = _BASE["sigma"],
+    n_paths: int = 50_000,
+    n_replications: int = 100,
+) -> dict:
+    """CRN effectiveness: variance reduction in finite-difference Greeks.
+
+    Compares two strategies for computing Greeks via bump-and-revalue:
+      - **CRN (Common Random Numbers):** Same seed for base and bumped prices
+      - **No CRN:** Independent seed for each pricing call
+
+    For each strategy, collects ``n_replications`` independent estimates of
+    Delta, Gamma, Vega, and Theta. Computes the variance reduction factor
+    (VRF = Var(no CRN) / Var(CRN)) to quantify the variance suppression.
+
+    Parameters
+    ----------
+    S0, K, T, r, sigma:
+        Black-Scholes market parameters. Uses ATM European call defaults.
+    n_paths:
+        Number of simulation paths per pricing call.
+    n_replications:
+        Number of independent replicates (100 recommended).
+
+    Returns
+    -------
+    dict
+        Keys: ``"delta"``, ``"gamma"``, ``"vega"``, ``"theta"``.
+        Values: dicts with keys ``"crn"``, ``"no_crn"`` (numpy arrays of estimates),
+        and ``"bs"`` (analytical benchmark).
+    """
+    h  = 0.01 * S0
+    dv = 0.01
+    dt = 1.0 / 252
+
+    results = {g: {"crn": [], "no_crn": []} for g in ["delta", "gamma", "vega", "theta"]}
+
+    for rep in range(n_replications):
+        # ── CRN: same seed for every pricing call ─────────────────────────
+        def _crn(S_=S0, sigma_=sigma, T_=T):
+            return mc_european_option_price(
+                S0=S_, K=K, T=T_, r=r, sigma=sigma_,
+                n_paths=n_paths, antithetic=True, random_seed=rep,
+            ).price
+
+        base   = _crn()
+        s_up   = _crn(S_=S0 + h)
+        s_down = _crn(S_=S0 - h)
+        v_up   = _crn(sigma_=sigma + dv)
+        v_down = _crn(sigma_=sigma - dv)
+        t_down = _crn(T_=T - dt)
+
+        results["delta"]["crn"].append((s_up - s_down) / (2 * h))
+        results["gamma"]["crn"].append((s_up - 2 * base + s_down) / h ** 2)
+        results["vega"]["crn"].append((v_up - v_down) / (2 * dv) / 100)
+        results["theta"]["crn"].append((t_down - base) / dt / 252)
+
+        # ── No CRN: independent seed for every pricing call ───────────────
+        seed = lambda offset: 6 * rep + offset
+
+        def _no_crn(S_=S0, sigma_=sigma, T_=T, offset=0):
+            return mc_european_option_price(
+                S0=S_, K=K, T=T_, r=r, sigma=sigma_,
+                n_paths=n_paths, antithetic=True, random_seed=seed(offset),
+            ).price
+
+        base_n   = _no_crn(offset=0)
+        s_up_n   = _no_crn(S_=S0 + h,       offset=1)
+        s_down_n = _no_crn(S_=S0 - h,       offset=2)
+        v_up_n   = _no_crn(sigma_=sigma + dv, offset=3)
+        v_down_n = _no_crn(sigma_=sigma - dv, offset=4)
+        t_down_n = _no_crn(T_=T - dt,        offset=5)
+
+        results["delta"]["no_crn"].append((s_up_n - s_down_n) / (2 * h))
+        results["gamma"]["no_crn"].append((s_up_n - 2 * base_n + s_down_n) / h ** 2)
+        results["vega"]["no_crn"].append((v_up_n - v_down_n) / (2 * dv) / 100)
+        results["theta"]["no_crn"].append((t_down_n - base_n) / dt / 252)
+
+    bs_vals = {
+        "delta": bs_call_delta(S0, K, T, r, sigma),
+        "gamma": bs_gamma(S0, K, T, r, sigma),
+        "vega":  bs_vega(S0, K, T, r, sigma),
+        "theta": bs_call_theta(S0, K, T, r, sigma),
+    }
+
+    return {
+        g: {
+            "crn":    np.array(results[g]["crn"]),
+            "no_crn": np.array(results[g]["no_crn"]),
+            "bs":     bs_vals[g],
+        }
+        for g in ["delta", "gamma", "vega", "theta"]
+    }
+
+
+# ---------------------------------------------------------------------------
+# Experiment 7 — P&L Attribution
+# ---------------------------------------------------------------------------
+
+def run_pnl_attribution_experiment(
+    S0: float = _BASE["S0"],
+    K: float = _BASE["K"],
+    T: float = _BASE["T"],
+    r: float = _BASE["r"],
+    sigma: float = _BASE["sigma"],
+    ds_range: float = 15.0,
+    n_points: int = 200,
+) -> pd.DataFrame:
+    """P&L attribution: first- vs second-order Greek approximations.
+
+    For a long European call, compares actual P&L (obtained by repricing
+    under Black-Scholes at new spot) against two approximations:
+      - First-order:  Δ·ΔS
+      - Second-order: Δ·ΔS + ½Γ·ΔS²
+
+    Across spot moves ΔS ∈ [−ds_range, +ds_range], records the actual P&L,
+    both approximations, and the residuals. The residuals quantify the
+    contribution of higher-order Greeks (Vega, Theta) and the accuracy of
+    the Taylor expansion at different move magnitudes.
+
+    Parameters
+    ----------
+    S0, K, T, r, sigma:
+        Black-Scholes market parameters. Uses ATM European call defaults.
+    ds_range:
+        Magnitude of spot moves to test (default ±15).
+    n_points:
+        Number of grid points in the move range (default 200).
+
+    Returns
+    -------
+    pd.DataFrame
+        Columns: ``dS`` (spot move), ``actual_pnl``, ``delta_pnl``,
+        ``delta_gamma_pnl``, ``delta_error``, ``delta_gamma_error``.
+    """
+    delta      = bs_call_delta(S0, K, T, r, sigma)
+    gamma      = bs_gamma(S0, K, T, r, sigma)
+    base_price = bs_call_price(S0, K, T, r, sigma)
+
+    dS_grid         = np.linspace(-ds_range, ds_range, n_points)
+    actual_pnl      = np.array([bs_call_price(S0 + dS, K, T, r, sigma) - base_price
+                                for dS in dS_grid])
+    delta_pnl       = delta * dS_grid
+    delta_gamma_pnl = delta * dS_grid + 0.5 * gamma * dS_grid ** 2
+
+    return pd.DataFrame({
+        "dS":               dS_grid,
+        "actual_pnl":       actual_pnl,
+        "delta_pnl":        delta_pnl,
+        "delta_gamma_pnl":  delta_gamma_pnl,
+        "delta_error":      actual_pnl - delta_pnl,
+        "delta_gamma_error": actual_pnl - delta_gamma_pnl,
+    })

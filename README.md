@@ -84,7 +84,6 @@ monte-carlo-option-pricing/
 ├─ foundations/                # Educational notebooks on theory
 └─ reports/
    ├─ figures/
-   └─ tables/
 ```
 
 ## Notebooks
@@ -154,7 +153,7 @@ Independent log-log OLS slopes on the call price across 50 seeds (notebook 1 - e
 −0.45 ± 0.23 for the antithetic estimator and −0.46 ± 0.25 for standard MC, both 
 statistically consistent with the theoretical −0.50.
 
-At N = 500,000, all five mean absolute errors fall below 10⁻³.
+At N = 500,000, all four Greek mean absolute errors fall below 10⁻³, and the call price MAE falls to ≈ 1.3 × 10⁻² (≈ 0.13% relative error).
 
 ---
 
@@ -174,7 +173,7 @@ This experiment prices an up-and-out call (S₀ = K = 100, B = 120, T = 1 yr, r 
 σ = 20 %) using 100,000 antithetic paths across nine resolutions from semi-annual 
 (n_steps = 2) to twice-daily (n_steps = 504). At n_steps = 2 the price is **2.6069**, 
 more than double the finest-grid estimate of **1.2825** — an overstatement of **+103 %**. 
-Bias halves roughly every time n_steps doubles, consistent with the theoretical rate. 
+Bias drops by a factor of √2 ≈ 0.71 each time n_steps doubles, consistent with the theoretical O(1/√n_steps) rate.
 By n_steps = 252 (daily monitoring) bias has collapsed to +3 %.
 
 | n_steps | MC Price | Bias vs. n = 504 | Bias % |
@@ -223,7 +222,7 @@ sweet spot is moderate N, where the gain is really visible.
 | 25,000   | 0.0086         | 0.0032           | 2.66×  |
 | 100,000  | 0.0016         | 0.0014           | 1.17×  |
 
-**Median VRF: 2.66× · Median efficiency ratio: 2.92×**
+**Median VRF: 2.66× · Median efficiency ratio: 2.99×**
 
 #### 3B · Common Random Numbers — Finite-Difference Greeks
 
@@ -236,10 +235,11 @@ correlated, and it cancels in the difference, leaving only the true sensitivity.
 ![CRN effectiveness across all four Greeks](reports/figures/crn_effectiveness.png)
 
 Across 100 replications at N = 50,000, the empirical VRF reaches **1,031× for 
-Delta, 105× for Vega, 60,312× for Gamma, and 432,756× for Theta**. Without CRN, 
-Gamma estimates scatter from −0.2 to +0.5 against a true value of 0.019, and 
-Theta from ±40 against a true value of −0.0255 — essentially pure noise. Theta 
-shows the most extreme VRF because two effects compound: its numerator subtracts 
+Delta, 105× for Vega, 60,312× for Gamma, and 432,756× for Theta**. 
+Without CRN, Gamma estimates scatter from −0.2 to +0.5 against a true value of 0.01876, and Theta
+estimates scatter from −0.17 to +0.17 against a true value of −0.02545 — essentially pure noise
+relative to the signal.
+Theta shows the most extreme VRF because two effects compound: its numerator subtracts 
 prices at nearly identical maturities (smallest signal of any Greek), and the 
 result is divided by dt ≈ 1/252, amplifying residual noise by 252×.
 
@@ -266,7 +266,7 @@ approximations: a first-order Delta-only model and a second-order Delta+Gamma mo
 ![P&L attribution: actual vs Delta-only vs Delta+Gamma](reports/figures/pnl_attribution.png)
 
 The Delta-only approximation misses the option's convexity: its residual grows 
-quadratically with ΔS, reaching **~$2** at a ±$15 spot move (~20 % of the move size). 
+quadratically with ΔS, reaching **~$2** at a ±$15 spot move (~13 % of the move size). 
 Adding the ½Γ·ΔS² term captures nearly all the curvature, keeping the residual 
 **below $0.3** even at the largest moves — a roughly **7× reduction** in unexplained 
 P&L. The small asymmetry that remains in the Delta+Gamma residual (positive for 
@@ -275,8 +275,8 @@ which only becomes detectable at large moves.
 
 | Approximation              | Residual at ΔS = ±15 | % of spot move |
 |----------------------------|---------------------:|---------------:|
-| Δ·ΔS  (Delta only)         | ~$2.0                | ~20 %          |
-| Δ·ΔS + ½Γ·ΔS²  (D + G)     | ~$0.3                | ~3 %           |
+| Δ·ΔS  (Delta only)         | ~$2.0                | ~13 %          |
+| Δ·ΔS + ½Γ·ΔS²  (D + G)     | ~$0.3                | ~2 %           |
 
 This is the empirical foundation for Delta-Gamma hedging in practice: Delta and 
 Gamma together explain the bulk of daily option P&L, and the residual is the 
