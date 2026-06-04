@@ -17,6 +17,7 @@ class MonteCarloResult:
 
 @dataclass(frozen=True)
 class MonteCarloGreeks:
+    base_price: float
     delta: float
     gamma: float
     vega: float       # per 1 vol point (1% move in sigma)
@@ -113,6 +114,7 @@ def mc_european_option_greeks(
     sigma: float,
     option_type: OptionType = "call",
     n_paths: int = 200_000,
+    antithetic: bool = False,
     random_seed: int | None = 42,
 ) -> MonteCarloGreeks:
     """Compute finite-difference Greeks for a European option via bump-and-revalue.
@@ -147,7 +149,7 @@ def mc_european_option_greeks(
             S0=S0_, K=K, T=T_, r=r, sigma=sigma_,
             option_type=option_type,
             n_paths=n_paths,
-            antithetic=False,
+            antithetic=antithetic,
             random_seed=random_seed,
         ).price
 
@@ -164,6 +166,7 @@ def mc_european_option_greeks(
     theta = (theta_price - base) / dt / 252.0
 
     return MonteCarloGreeks(
+        base_price=base,
         delta=delta,
         gamma=gamma,
         vega=vega,
