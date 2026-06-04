@@ -17,6 +17,10 @@ Research questions addressed
 
 4. :func:`run_discretisation_bias_experiment`
    How does time-step resolution affect barrier option pricing bias?
+
+5. :func:`run_mc_greeks_experiment`
+   Do MC finite-difference Greeks converge to analytical Black-Scholes Greeks,
+   and at what rate?
 """
 
 from __future__ import annotations
@@ -28,11 +32,17 @@ from typing import Sequence
 import numpy as np
 import pandas as pd
 
-from option_pricing.black_scholes import bs_call_price, bs_put_price
+from option_pricing.black_scholes import (
+    bs_call_price, bs_put_price,
+    bs_call_delta, bs_put_delta,
+    bs_gamma, bs_vega,
+    bs_call_theta, bs_put_theta,
+)
 from option_pricing.monte_carlo import (
     MonteCarloResult,
     mc_barrier_option_price,
     mc_european_option_price,
+    mc_european_option_greeks,
 )
 from option_pricing.utils import confidence_interval, estimate_convergence_rate
 
@@ -436,3 +446,149 @@ def run_discretisation_bias_experiment(
     df["bias_vs_finest"] = df["mc_price"] - finest_price
 
     return df
+
+
+# ---------------------------------------------------------------------------
+# Experiment 5 — Monte Carlo Greek Convergence
+# ---------------------------------------------------------------------------
+
+def run_mc_greeks_experiment(
+    S0: float = _BASE["S0"],
+    K: float = _BASE["K"],
+    T: float = _BASE["T"],
+    r: float = _BASE["r"],
+    sigma: float = _BASE["sigma"],
+    path_grid: Sequence[int] | None = None,
+    antithetic: bool = True,
+    n_seeds: int = 30,
+) -> pd.DataFrame:
+    """Convergence of MC finite-difference Greeks to analytical Black-Scholes.
+
+    For each N in *path_grid*, computes all four Greeks (Delta, Gamma, Vega, Theta)
+    via central-difference bump-and-revalue using Common Random Numbers (CRN).
+    Compares each MC Greek estimate to the analytical Black-Scholes benchmark
+    and records the absolute error.
+
+    When *n_seeds* > 1, the full N-grid is repeated for seeds
+    ``0, 1, …, n_seeds−1``. Each seed produces independent MC estimates;
+    errors are aggregated across seeds to obtain robust mean and standard error.
+
+    Parameters
+    ----------
+    S0, K, T, r, sigma:
+        Black-Scholes market parameters. Uses ATM European call defaults.
+    path_grid:
+        Ordered sequence of simulation sizes to sweep. If None, uses
+        ``[1_000, 5_000, 10_000, 50_000, 100_000, 200_000, 500_000]``.
+    antithetic:
+        If True, use antithetic variates to reduce variance (recommended).
+    n_seeds:
+        Number of independent seeds to average over. Higher values (30–100)
+        give robust convergence estimates.
+
+    Returns
+    -------
+    pd.DataFrame
+        Columns: ``n_paths``, ``price``, ``delta``, ``gamma``, ``vega``, ``theta``,
+        ``price_error``, ``delta_error``, ``gamma_error``, ``vega_error``, ``theta_error``,
+        ``runtime_s``.
+    """
+    if path_grid is None:
+        path_grid = [1_000, 5_000, 10_000, 50_000, 100_000, 200_000, 500_000]
+
+    # Compute analytical benchmarks once, outside all loops
+    benchmarks = {
+        "price": bs_call_price(S0, K, T, r, sigma),
+        "delta": bs_call_delta(S0, K, T, r, sigma),
+        "gamma": bs_gamma(S0, K, T, r, sigma),
+        "vega":  bs_vega(S0, K, T, r, sigma),
+        "theta": bs_call_theta(S0, K, T, r, sigma),
+    }
+
+    # List of dicts to build DataFrame later
+    rows: list[dict] = []
+
+    # Loop over path counts and seeds, collect results and runtimes
+    for n_paths in path_grid:
+        for used_seed in range(n_seeds):
+            t0 = time.perf_counter()
+            res = mc_european_option_greeks(
+                S0=S0, K=K, T=T, r=r, sigma=sigma,
+                option_type="call",
+                n_paths=n_paths,
+                antithetic=antithetic,
+                random_seed=used_seed,
+            )
+            rt = time.perf_counter() - t0
+
+            rows.append({
+                "n_paths":   n_paths,
+                "price":     res.base_price,
+                "delta":     res.delta,
+                "gamma":     res.gamma,
+                "vega":      res.vega,
+                "theta":     res.theta,
+                "runtime_s": rt,
+            })
+
+    df = pd.DataFrame(rows)
+
+    # Add absolute error columns using benchmarks
+    for greek, bs_val in benchmarks.items():
+        df[f"{greek}_error"] = np.abs(df[greek] - bs_val)
+
+    return df
+
+
+def aggregate_greeks_experiment(df: pd.DataFrame) -> pd.DataFrame:
+    """Aggregate raw MC Greek estimates into seed-averaged statistics.
+
+    For each n_paths level, computes mean estimate, mean absolute error,
+    standard error of the error, and coefficient of variation (ratio of
+    SE to mean error).
+
+    Parameters
+    ----------
+    df:
+        Output from :func:`run_mc_greeks_experiment`.
+
+    Returns
+    -------
+    pd.DataFrame
+        Aggregated by n_paths with columns: ``n_paths``, ``price``, ``delta``,
+        ``gamma``, ``vega``, ``theta``, ``price_mean_error``, ``price_se``,
+        ``delta_mean_error``, ``delta_se``, ``delta_ratio``, and similarly
+        for gamma, vega, theta. Also includes ``runtime_mean``.
+    """
+    def se(x: pd.Series) -> float:
+        """Standard error of a series (computed across seeds)."""
+        return x.std(ddof=1) / np.sqrt(len(x))
+
+    agg = (
+        df.groupby("n_paths")
+        .agg(
+            price=("price", "mean"),
+            price_mean_error=("price_error", "mean"),
+            price_se=("price_error", se),
+            delta=("delta", "mean"),
+            delta_mean_error=("delta_error", "mean"),
+            delta_se=("delta_error", se),
+            gamma=("gamma", "mean"),
+            gamma_mean_error=("gamma_error", "mean"),
+            gamma_se=("gamma_error", se),
+            vega=("vega", "mean"),
+            vega_mean_error=("vega_error", "mean"),
+            vega_se=("vega_error", se),
+            theta=("theta", "mean"),
+            theta_mean_error=("theta_error", "mean"),
+            theta_se=("theta_error", se),
+            runtime_mean=("runtime_s", "mean"),
+        )
+        .reset_index()
+    )
+
+    # Compute se / mean_error ratio after aggregation
+    for greek in ["price", "delta", "gamma", "vega", "theta"]:
+        agg[f"{greek}_ratio"] = agg[f"{greek}_se"] / agg[f"{greek}_mean_error"]
+
+    return agg
