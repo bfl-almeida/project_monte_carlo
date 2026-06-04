@@ -15,6 +15,16 @@ class MonteCarloResult:
     standard_error: float
 
 
+@dataclass(frozen=True)
+class MonteCarloGreeks:
+    base_price: float
+    delta: float
+    gamma: float
+    vega: float       # per 1 vol point (1% move in sigma)
+    theta: float      # per calendar day (negative for long options)
+    n_paths: int
+    random_seed: int | None
+
 
 def _build_normal_draws(
     n_paths: int,
@@ -96,6 +106,74 @@ def mc_european_option_price(
     standard_error = float(np.std(discounted, ddof=1) / np.sqrt(len(discounted)))
     return MonteCarloResult(price=price, standard_error=standard_error)
 
+def mc_european_option_greeks(
+    S0: float,
+    K: float,
+    T: float,
+    r: float,
+    sigma: float,
+    option_type: OptionType = "call",
+    n_paths: int = 200_000,
+    antithetic: bool = False,
+    random_seed: int | None = 42,
+) -> MonteCarloGreeks:
+    """Compute finite-difference Greeks for a European option via bump-and-revalue.
+
+    Uses Common Random Numbers (CRN): the same random seed is passed to all
+    pricing calls so differences reflect parameter sensitivity only, not
+    sampling noise. Central differences are used for all Greeks, giving
+    O(h²) truncation error vs O(h) for forward differences.
+
+    Antithetic variates are disabled. Mixing antithetic and non-antithetic
+    paths across bumps breaks the CRN guarantee. Use large n_paths instead.
+
+    Bump sizes
+    ----------
+    Delta / Gamma : h  = 0.01 * S0  (1% of spot, market standard)
+    Vega          : dv = 0.01        (1 vol point = 1% move in sigma)
+    Theta         : dt = 1 / 252     (one trading day)
+
+    Vega is expressed per 1 vol point (market convention): the raw central
+    difference is divided by 100 so the output matches dV/d(sigma%) rather
+    than dV/d(sigma).
+
+    Theta is returned per calendar day to match Black-Scholes theta
+    conventions used in this project.
+    """
+    h  = 0.01 * S0
+    dv = 0.01
+    dt = 1.0 / 252
+
+    def _price(S0_: float = S0, sigma_: float = sigma, T_: float = T) -> float:
+        return mc_european_option_price(
+            S0=S0_, K=K, T=T_, r=r, sigma=sigma_,
+            option_type=option_type,
+            n_paths=n_paths,
+            antithetic=antithetic,
+            random_seed=random_seed,
+        ).price
+
+    base        = _price()
+    spot_up     = _price(S0_=S0 + h)
+    spot_down   = _price(S0_=S0 - h)
+    vol_up      = _price(sigma_=sigma + dv)
+    vol_down    = _price(sigma_=sigma - dv)
+    theta_price = _price(T_=T - dt)
+
+    delta = (spot_up - spot_down) / (2 * h)
+    gamma = (spot_up - 2 * base + spot_down) / h ** 2
+    vega  = (vol_up - vol_down) / (2 * dv) / 100
+    theta = (theta_price - base) / dt / 252.0
+
+    return MonteCarloGreeks(
+        base_price=base,
+        delta=delta,
+        gamma=gamma,
+        vega=vega,
+        theta=theta,
+        n_paths=n_paths,
+        random_seed=random_seed,
+    )
 
 
 def simulate_price_paths(

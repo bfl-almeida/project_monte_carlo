@@ -1,11 +1,25 @@
-import math
+"""
+Test suite for monte_carlo.py
+
+Structure:
+  - European option pricing vs BS reference
+  - Barrier option logic
+  - Monte Carlo statistical properties (CI, convergence, variance reduction)
+  - Experiment smoke tests
+"""
 
 import pandas as pd
 import pytest
 from time import perf_counter
 
-from option_pricing.black_scholes import bs_call_price, bs_put_price
-from option_pricing.experiments import (
+from option_pricing.black_scholes import (
+    bs_call_delta,
+    bs_call_price,
+    bs_call_theta,
+    bs_gamma,
+    bs_vega,
+)
+from research.experiments import (
     run_ci_coverage_experiment,
     run_convergence_experiment,
     run_discretisation_bias_experiment,
@@ -13,6 +27,7 @@ from option_pricing.experiments import (
 )
 from option_pricing.monte_carlo import (
     mc_barrier_option_price,
+    mc_european_option_greeks,
     mc_european_option_price,
 )
 from option_pricing.utils import (
@@ -23,32 +38,15 @@ from option_pricing.utils import (
 )
 
 
-# ---------------------------------------------------------------------------
-# Black-Scholes analytical tests
-# ---------------------------------------------------------------------------
+ATM_PARAMS = dict(S0=100.0, K=100.0, T=1.0, r=0.05, sigma=0.20)
 
 
-def test_black_scholes_put_call_parity() -> None:
-    S0 = 100.0
-    K = 100.0
-    T = 1.0
-    r = 0.05
-    sigma = 0.2
-
-    call = bs_call_price(S0, K, T, r, sigma)
-    put = bs_put_price(S0, K, T, r, sigma)
-
-    lhs = call - put
-    rhs = S0 - K * math.exp(-r * T)
-    assert abs(lhs - rhs) < 1e-10
-
-
-# ---------------------------------------------------------------------------
-# Monte Carlo pricing tests
-# ---------------------------------------------------------------------------
-
+# ============================================================================
+# Monte Carlo Pricing vs Black-Scholes Reference
+# ============================================================================
 
 def test_monte_carlo_call_close_to_black_scholes() -> None:
+    """MC call price should converge to BS price with sufficient paths."""
     S0 = 100.0
     K = 100.0
     T = 1.0
@@ -71,7 +69,12 @@ def test_monte_carlo_call_close_to_black_scholes() -> None:
     assert abs(mc.price - analytic) < 0.15
 
 
+# ============================================================================
+# Barrier Option Logic
+# ============================================================================
+
 def test_barrier_option_not_more_expensive_than_vanilla() -> None:
+    """Barrier option (up-and-out) should never exceed vanilla."""
     vanilla = mc_european_option_price(
         S0=100.0,
         K=100.0,
@@ -102,10 +105,84 @@ def test_barrier_option_not_more_expensive_than_vanilla() -> None:
     assert barrier.price >= 0.0
 
 
-# ---------------------------------------------------------------------------
-# Statistical utility tests
-# ---------------------------------------------------------------------------
+# ============================================================================
+# Finite-Difference Greeks (Step 2)
+# ============================================================================
 
+def test_mc_delta_vs_analytical() -> None:
+    """MC Delta via CRN central difference should match BS Delta within 0.01."""
+    mc = mc_european_option_greeks(
+        **ATM_PARAMS,
+        option_type="call",
+        n_paths=200_000,
+        random_seed=42,
+    )
+    analytical = bs_call_delta(**ATM_PARAMS)
+    assert mc.delta == pytest.approx(analytical, abs=0.01)
+
+
+def test_mc_gamma_vs_analytical() -> None:
+    """MC Gamma should match BS Gamma within 0.005."""
+    mc = mc_european_option_greeks(
+        **ATM_PARAMS,
+        option_type="call",
+        n_paths=200_000,
+        random_seed=42,
+    )
+    analytical = bs_gamma(**ATM_PARAMS)
+    assert mc.gamma == pytest.approx(analytical, abs=0.005)
+
+
+def test_mc_vega_vs_analytical() -> None:
+    """MC Vega (per 1 vol point) should match BS Vega within 0.05."""
+    mc = mc_european_option_greeks(
+        **ATM_PARAMS,
+        option_type="call",
+        n_paths=200_000,
+        random_seed=42,
+    )
+    analytical = bs_vega(**ATM_PARAMS)
+    assert mc.vega == pytest.approx(analytical, abs=0.05)
+
+
+def test_mc_theta_vs_analytical() -> None:
+    """MC Theta (per calendar day) should match BS Theta within 0.05."""
+    mc = mc_european_option_greeks(
+        **ATM_PARAMS,
+        option_type="call",
+        n_paths=200_000,
+        random_seed=42,
+    )
+    analytical = bs_call_theta(**ATM_PARAMS)
+    assert mc.theta == pytest.approx(analytical, abs=0.05)
+
+
+def test_mc_greeks_call_delta_in_range() -> None:
+    """Call Delta must be in (0, 1) for any valid input."""
+    mc = mc_european_option_greeks(
+        **ATM_PARAMS,
+        option_type="call",
+        n_paths=200_000,
+        random_seed=42,
+    )
+    assert 0.0 < mc.delta < 1.0
+
+
+@pytest.mark.parametrize("option_type", ["call", "put"])
+def test_mc_greeks_gamma_positive(option_type: str) -> None:
+    """Gamma is always positive for both calls and puts."""
+    mc = mc_european_option_greeks(
+        **ATM_PARAMS,
+        option_type=option_type,
+        n_paths=200_000,
+        random_seed=42,
+    )
+    assert mc.gamma > 0.0
+
+
+# ============================================================================
+# Statistical Properties of Monte Carlo Estimator
+# ============================================================================
 
 def test_confidence_interval_contains_true_price() -> None:
     """95 % CI should contain the BS price with high probability at N=100k."""
@@ -122,6 +199,7 @@ def test_confidence_interval_contains_true_price() -> None:
 
 
 def test_confidence_interval_ordering() -> None:
+    """CI should always have lower < price < upper."""
     res = mc_european_option_price(
         S0=100, K=100, T=1.0, r=0.05, sigma=0.2,
         n_paths=10_000, random_seed=1,
@@ -164,6 +242,7 @@ def test_efficiency_ratio_antithetic_greater_than_one() -> None:
 
 
 def test_convergence_table_schema() -> None:
+    """Convergence table should have expected columns and structure."""
     df = convergence_table(
         S0=100, K=100, T=1.0, r=0.05, sigma=0.2,
         path_grid=[1_000, 5_000, 10_000],
@@ -178,12 +257,12 @@ def test_convergence_table_schema() -> None:
     assert (df["ci_lower"] < df["ci_upper"]).all()
 
 
-# ---------------------------------------------------------------------------
-# Experiment smoke tests (fast, structural only)
-# ---------------------------------------------------------------------------
-
+# ============================================================================
+# Experiment Smoke Tests (Structural Only)
+# ============================================================================
 
 def test_run_convergence_experiment_returns_dataframe() -> None:
+    """Convergence experiment should return a DataFrame with method column."""
     df = run_convergence_experiment(
         path_grid=[1_000, 5_000],
         random_seed=42,
@@ -195,6 +274,7 @@ def test_run_convergence_experiment_returns_dataframe() -> None:
 
 
 def test_run_variance_reduction_experiment_vrf_positive() -> None:
+    """Variance reduction experiment should show positive VRF."""
     df = run_variance_reduction_experiment(
         path_grid=[5_000, 10_000],
         n_replications=20,
@@ -230,4 +310,3 @@ def test_run_discretisation_bias_experiment_monotone() -> None:
     assert "bias_vs_finest" in df.columns
     # The coarsest grid should have the largest absolute bias
     assert abs(df["bias_vs_finest"].iloc[0]) >= abs(df["bias_vs_finest"].iloc[-1])
-

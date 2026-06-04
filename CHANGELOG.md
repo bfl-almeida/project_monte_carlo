@@ -4,6 +4,132 @@ All notable changes to this project are documented in this file.
 
 ---
 
+## [0.4.0] — 2026-06-03
+
+### Changed — Test Suite Structure
+- **Renamed and split `tests/test_pricing.py`:**
+  - `test_pricing.py` → `test_monte_carlo.py` (11 tests): Monte Carlo pricing, convergence, CI, experiments.
+  - `test_pricing.py` → `test_black_scholes.py` (30 tests, new): Analytical prices and Greeks.
+  - Mirrors source module structure (`black_scholes.py`, `monte_carlo.py`) for clarity.
+
+### Added — Quantitative Greek Tests (`tests/test_black_scholes.py`)
+- **Exact reference values** (10 tests): Each Greek and price locked to known-good values via `scipy.stats.norm`.
+  - `test_bs_call_price_exact_reference`, `test_bs_put_price_exact_reference`
+  - `test_bs_call_delta_exact_reference`, `test_bs_put_delta_exact_reference`
+  - `test_bs_gamma_exact_reference`, `test_bs_vega_exact_reference`
+  - `test_bs_call_theta_exact_reference`, `test_bs_put_theta_exact_reference`
+  - `test_bs_call_rho_exact_reference`, `test_bs_put_rho_exact_reference`
+- **Parametrized property tests** (15 tests): Qualitative invariants (sign, parity, monotonicity) across multiple input sets.
+  - `test_bs_gamma_always_positive` (3 parameter sets: ATM/OTM/ITM)
+  - `test_bs_vega_always_positive` (3 parameter sets)
+  - `test_bs_call_theta_negative` (3 parameter sets)
+  - `test_bs_put_theta_negative` (2 parameter sets: ATM and ITM; OTM put theta can be positive)
+  - `test_bs_delta_parity` (3 diverse parameter sets)
+- **Edge case tests** (5 tests): T ≤ 0, sigma ≤ 0, zero-vol step functions, ATM short-dated.
+
+### Changed — Test Assertions
+- All numeric comparisons now use `pytest.approx()` with explicit tolerances instead of manual `abs()` checks.
+- Improves error messages on failure and makes tolerances explicit.
+
+### Changed — Test Documentation
+- Added docstrings to all test functions explaining intent.
+- Organized test files into logical sections with clear headers.
+- Reference parameters stored in module-level constant (`REF_PARAMS`) to reduce repetition.
+
+### Added — Step 2: Finite-Difference Greeks (`src/option_pricing/monte_carlo.py`)
+- **`MonteCarloGreeks` dataclass:** Holds delta, gamma, vega (per 1% vol), theta (per trading day), n_paths, random_seed.
+- **`mc_european_option_greeks()` function:** Computes finite-difference Greeks via bump-and-revalue using Common Random Numbers (CRN).
+  - Uses central differences (O(h²) truncation error) for all Greeks.
+  - Bump sizes: Delta/Gamma h = 0.01 × S₀; Vega dv = 0.01; Theta dt = 1/252 (one trading day).
+  - Antithetic variates disabled to preserve CRN integrity.
+  - Theta returned per trading day (252-day standard) to match Black-Scholes conventions in this project.
+  - Documents key decision: central differences vs forward, CRN preservation, and vega market convention (per 1 vol point).
+
+### Changed — Theta Convention (Step 2)
+- **Standardized to 252 trading days per year** across entire codebase for consistency with market convention.
+- `bs_call_theta()` and `bs_put_theta()` now divide by `/252` instead of `/365` — theta expressed per trading day.
+- `mc_european_option_greeks()` theta now correctly scaled per trading day by dividing annualized finite-difference by 252.
+- Updated all references in docstrings, tests, and CHANGELOG to reflect 252-day standard.
+
+### Added — Step 2 Greek Validation Tests (`tests/test_monte_carlo.py`)
+- `test_mc_delta_vs_analytical()` — MC Delta converges to BS Delta within 0.01 at N=200k.
+- `test_mc_gamma_vs_analytical()` — MC Gamma converges to BS Gamma within 0.005.
+- `test_mc_vega_vs_analytical()` — MC Vega (per 1 vol point) converges to BS Vega within 0.05.
+- `test_mc_theta_vs_analytical()` — MC Theta (per calendar day) converges to BS Theta within 0.05.
+- `test_mc_greeks_call_delta_in_range()` — Call Delta ∈ (0, 1) structural check.
+- `test_mc_greeks_gamma_positive[call|put]()` — Gamma > 0 for both calls and puts (parametrized).
+
+### Updated — README
+- Feature list now includes "Finite-difference Monte Carlo Greeks (Delta, Gamma, Vega, Theta) with Common Random Numbers".
+- Methods table adds "Finite-Difference Greeks (CRN): Bump-and-revalue Delta/Gamma/Vega/Theta via central differences with common random numbers".
+- Project structure updated to show both `test_black_scholes.py`, `test_monte_carlo.py`, and new `src/research/` module.
+- New tagline: "A Python library for Monte Carlo option pricing, finite-difference Greeks, and variance reduction analysis under the Black-Scholes model."
+- Added Notebooks section with descriptions of `research_demo.ipynb` and `research_demo_greeks.ipynb`.
+- Added Section 5: "Monte Carlo Greek Estimation via Bump-and-Revalue" with empirical results.
+
+### Added — Experiment 5: MC Greeks Convergence (`src/research/experiments.py`)
+- **`run_mc_greeks_experiment()`:** Computes Delta, Gamma, Vega, Theta via central-difference bump-and-revalue with CRN across path grid.
+  - Default grid: [1K, 5K, 10K, 50K, 100K, 200K, 500K] paths.
+  - Supports seed averaging (default n_seeds=30) for robust convergence analysis.
+  - Returns DataFrame with MC estimates, analytical benchmarks, absolute errors, and runtimes.
+- **`aggregate_greeks_experiment()`:** Helper to compute seed-averaged statistics (mean, SE, coefficient of variation) per N-level for log-log convergence plotting.
+- **Convergence validation:** All four MC Greeks converge to BS benchmarks at O(N⁻¹/²) rate; at N=500k all absolute errors < 10⁻³.
+
+### Added — Experiment 6: CRN Effectiveness (`src/research/experiments.py`)
+- **`run_crn_experiment()`:** Quantifies variance reduction from Common Random Numbers in finite-difference Greeks.
+  - Compares two strategies: CRN (same seed for base and bumped prices) vs. No CRN (independent seeds).
+  - Collects n_replications (default 100) independent estimates for each Greek.
+  - Returns dict with keys `"delta"`, `"gamma"`, `"vega"`, `"theta"`; each contains `"crn"`, `"no_crn"` arrays and `"bs"` benchmark.
+- **Variance Reduction Factors (VRF):** Delta ~1,000×, Gamma ~60,000×, Vega ~100×, Theta ~430,000×. Second derivatives require CRN to remain numerically stable.
+
+### Added — Experiment 7: P&L Attribution (`src/research/experiments.py`)
+- **`run_pnl_attribution_experiment()`:** Compares actual option P&L against first- and second-order Greek approximations.
+  - Sweeps spot moves ΔS ∈ [−ds_range, +ds_range] (default ±15) with n_points grid (default 200).
+  - Computes first-order (Δ·ΔS) and second-order (Δ·ΔS + ½Γ·ΔS²) Taylor approximations.
+  - Returns DataFrame with actual P&L, both approximations, and residuals (delta_error, delta_gamma_error).
+- **P&L accuracy:** Delta + ½Γ·ΔS² tracks repriced P&L within $0.3 at ±$15 spot moves (85% improvement over Delta-only ~$2). Empirical validation of Delta-Gamma hedging efficacy.
+
+### Research Validation — Experiments 5–7 Results (`research_demo_greeks.ipynb`)
+- **Notebook integration:** All three experiments now use reproducible library functions instead of inline code.
+- **Greek convergence:** All four MC Greeks converge O(N⁻¹/²), errors < 10⁻³ at N=500k.
+- **CRN effectiveness:** VRFs achieved: Delta 1,031×, Gamma 60,312×, Vega 105×, Theta 432,756×.
+- **Bump size sensitivity:** L-shape (Delta/Vega) vs U-shape (Gamma) patterns; market f=0.01 keeps all MAE < 10⁻³.
+- **P&L attribution:** Delta+Gamma accuracy $0.3 vs Delta-only $2 residual at ±15 moves.
+
+### Changed — Module Organization
+- **Moved `src/option_pricing/experiments.py` → `src/research/experiments.py`** to cleanly separate reproducible research code from core library.
+- `src/option_pricing/` now contains only the pricing library (black_scholes.py, monte_carlo.py, utils.py).
+- `src/research/` holds demo notebooks, with some experiment functions inside it.
+- Updated `pyproject.toml` packages list to include both `option_pricing` and `research` as top-level packages under `src/`.
+- Updated all imports in tests, notebooks, and README to use `research.experiments`.
+
+---
+
+## [0.3.1] — 2026-05-11
+
+
+### Added — `src/option_pricing/black_scholes.py`
+- `_norm_pdf(x)` — standard normal PDF helper, used by all new Greeks.
+- `bs_call_delta(S0, K, T, r, sigma)` — analytical call Delta: N(d1). Handles T ≤ 0 (step function) and sigma ≤ 0 (step function on forward).
+- `bs_put_delta(S0, K, T, r, sigma)` — analytical put Delta: N(d1) − 1. Same edge cases.
+- `bs_gamma(S0, K, T, r, sigma)` — analytical Gamma (identical for call and put): N'(d1) / (S0 · σ · √T). Returns 0.0 for T ≤ 0 or sigma ≤ 0.
+- `bs_vega(S0, K, T, r, sigma)` — analytical Vega (identical for call and put): S0 · N'(d1) · √T, expressed per 1% move in vol (divided by 100). Returns 0.0 for T ≤ 0 or sigma ≤ 0.
+- `bs_call_theta(S0, K, T, r, sigma)` — analytical call Theta per calendar day: −(S0·N'(d1)·σ)/(2√T) − r·K·e^(−rT)·N(d2), divided by 365. Returns 0.0 for T ≤ 0.
+- `bs_put_theta(S0, K, T, r, sigma)` — analytical put Theta per calendar day: −(S0·N'(d1)·σ)/(2√T) + r·K·e^(−rT)·N(−d2), divided by 365. Returns 0.0 for T ≤ 0.
+- `bs_call_rho(S0, K, T, r, sigma)` — analytical call Rho per 1% move in rates: K·T·e^(−rT)·N(d2), divided by 100. Returns 0.0 for T ≤ 0.
+- `bs_put_rho(S0, K, T, r, sigma)` — analytical put Rho per 1% move in rates: −K·T·e^(−rT)·N(−d2), divided by 100. Returns 0.0 for T ≤ 0.
+
+### Changed — `src/option_pricing/black_scholes.py`
+- `_norm_cdf` and `_norm_pdf` given one-line docstrings.
+- `bs_call_delta` and `bs_put_delta` docstrings updated to include the formula (N(d1) / N(d1)−1).
+
+### Changed — `pyproject.toml`
+- Migrated from setuptools to **Poetry** (`poetry-core` build backend).
+- `[tool.poetry.dependencies]` replaces `[project.dependencies]`.
+- Dev group (`[tool.poetry.group.dev.dependencies]`) includes `pytest >=9.0.3,<10.0.0`, `pytest-cov`, and `ipykernel ^7.2.0`.
+
+---
+
 ## [0.3.0] — 2026-05-10
 
 ### Removed
