@@ -2,11 +2,11 @@
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Tests](https://github.com/bfl-almeida/project_monte_carlo/actions/workflows/test.yml/badge.svg)
 
-# Monte Carlo Methods for Derivative Pricing and Variance Reduction
+# Monte Carlo Methods for Derivative Pricing, Greeks Estimation, and Variance Reduction
 
 ## Overview
 
-This repository contains a self-directed quantitative finance project implementing Monte Carlo option pricing under the Black-Scholes framework. It includes analytical benchmarks, stochastic simulation, confidence intervals, convergence analysis, variance reduction techniques, Greeks estimation and barrier option pricing.
+A Python library for Monte Carlo option pricing, finite-difference Greeks, and variance reduction analysis under the Black-Scholes model — built as a quantitative research project with reproducible experiments, statistical validation, and a full pytest suite.
 
 The goal is to demonstrate practical skills relevant to quantitative finance roles: derivatives pricing, numerical methods, statistical validation, model risk analysis and Python-based quantitative tooling.
 
@@ -67,26 +67,36 @@ monte-carlo-option-pricing/
 ├─ README.md
 ├─ .gitignore
 ├─ src/
-│  └─ option_pricing/
+│  ├─ option_pricing/           # Core library
+│  │  ├─ __init__.py
+│  │  ├─ black_scholes.py       # Analytical BS prices and Greeks (8 + 2 functions)
+│  │  ├─ monte_carlo.py        # Simulation engine + finite-difference MC Greeks (CRN)
+│  │  └─ utils.py              # Statistical helpers, convergence table
+│  └─ research/                # Reproducible research experiments
 │     ├─ __init__.py
-│     ├─ black_scholes.py      # Analytical BS prices and Greeks
-│     ├─ monte_carlo.py        # Simulation engine + finite-difference MC Greeks
-│     ├─ experiments.py        # Reproducible research experiments
-│     └─ utils.py              # Statistical helpers, convergence table
+│     └─ experiments.py        # Four main experiment functions
 ├─ tests/
-│  ├─ test_black_scholes.py
-│  └─ test_monte_carlo.py
+│  ├─ test_black_scholes.py   # 30 tests: exact reference + properties + edge cases
+│  └─ test_monte_carlo.py      # 18 tests: pricing, barrier, Greeks, experiments
 ├─ notebooks/
-│  └─ research_demo.ipynb
+│  ├─ research_demo.ipynb      # Vanilla pricing experiments (convergence, VR, CI, bias)
+│  └─ research_demo_greeks.ipynb # MC Greek estimation + P&L attribution
+├─ foundations/                # Educational notebooks on theory
 └─ reports/
    ├─ figures/
    └─ tables/
 ```
 
+## Notebooks
+
+**`research_demo.ipynb`** — Core experiments: convergence at O(N⁻¹/²), variance reduction effectiveness (antithetic VRF ≈ 2.66×), CI coverage (91–93 % empirical vs 95 % nominal), and discretisation bias in barrier options (O(1/√n_steps) convergence).
+
+**`research_demo_greeks.ipynb`** — Seven experiments on finite-difference Greek estimation: Greek profiles vs spot and maturity, convergence to BS benchmarks under antithetic vs plain MC, log-log convergence rate, bump size sensitivity across multiple orders of magnitude, CRN effectiveness (VRF > 1000× for Gamma/Theta), and P&L attribution using Delta + ½Γ·ΔS² Taylor expansion.
+
 ## Quickstart
 
 ```python
-from option_pricing import mc_european_option_price, bs_call_price
+from option_pricing import mc_european_option_price, bs_call_price, mc_european_option_greeks
 from research.experiments import run_convergence_experiment
 
 # Analytical benchmark
@@ -98,6 +108,13 @@ result = mc_european_option_price(
     option_type="call", n_paths=100_000, antithetic=True, random_seed=42,
 )
 print(f"MC price: {result.price:.4f}  SE: {result.standard_error:.4f}")
+
+# Finite-difference Greeks via Common Random Numbers
+greeks = mc_european_option_greeks(
+    S0=100, K=100, T=1, r=0.05, sigma=0.2,
+    option_type="call", n_paths=200_000, random_seed=42,
+)
+print(f"Delta: {greeks.delta:.4f}, Gamma: {greeks.gamma:.6f}, Vega: {greeks.vega:.4f}, Theta: {greeks.theta:.4f}")
 
 # Convergence experiment
 df = run_convergence_experiment()
@@ -274,6 +291,56 @@ or sub-daily grids are required for reliable estimates.
 | 128 | 0.008 | 1.3769 | [1.355, 1.398] | +0.0944 | 0.412 |
 | 252 | 0.004 | 1.3239 | [1.303, 1.345] | +0.0414 | 0.777 |
 | **504** | **0.002** | **1.2825** | **[1.262, 1.303]** | **—** | **1.659** |
+
+---
+
+### 5 · Monte Carlo Greek Estimation via Bump-and-Revalue
+
+Finite-difference Greeks are estimated using central differences with Common Random Numbers (CRN).
+Without CRN, second derivatives (Gamma, Theta) would be drowned in Monte Carlo noise. CRN ensures
+that parameter bumps generate differences driven purely by sensitivity, not sampling variation.
+
+**Convergence to Black-Scholes**
+
+All four MC Greeks converge to analytical BS benchmarks at the theoretical *O(N^{−1/2})* rate when
+Gamma and Theta are estimated with CRN. At N = 500,000 paths all absolute errors fall below 10^{−3}.
+The results validate both the bump-and-revalue technique and the CRN implementation:
+
+| Greek | BS Value | MC (N=500k) | Error | Rel Error % | VRF (with CRN) |
+|-------|-------:|--------:|-------:|----------:|---------------:|
+| Delta | 0.6368 | 0.6369 | 0.0001 | 0.01 % | 1,031× |
+| Gamma | 0.0188 | 0.0187 | 0.0001 | 0.53 % | 60,312× |
+| Vega | 0.3752 | 0.3747 | 0.0005 | 0.13 % | 105× |
+| Theta | -0.0176 | -0.0175 | 0.0001 | 0.57 % | 432,756× |
+
+*VRF = Variance Reduction Factor: the variance of plain (non-CRN) estimates divided by CRN estimates.
+Without CRN, Gamma and Theta estimates are purely noise; VRF quantifies the dramatic stabilization
+that CRN provides.*
+
+**Bump Size Optimization**
+
+Bump size balances truncation error (too-large bumps) against floating-point cancellation (too-small bumps).
+Testing across three orders of magnitude reveals distinct patterns:
+
+- **First-order Greeks (Delta, Vega):** L-shaped mean absolute error (MAE). Optimal plateau spans
+  h ∈ [0.005, 0.015] for Delta and dv ∈ [0.008, 0.012] for Vega. Market convention (h = 0.01,
+  dv = 0.01) sits safely in the plateau.
+- **Second-order Greels (Gamma):** U-shaped MAE with a sharper optimum near h ≈ 0.06. Theta shows
+  similar structure. At the market-convention bump sizes, all four Greeks MAE remains below 10^{−3}.
+
+**P&L Attribution: Delta + ½Γ·ΔS² vs. Actual Repricing**
+
+The Taylor expansion P&L ≈ Δ·ΔS + ½Γ·ΔS² + V·Δσ + Θ·Δt is the foundation of intraday
+P&L explain. Testing on ±$15 spot moves shows:
+
+- **Delta-only model:** ~$2 residual (20 % of move size)
+- **Delta + Gamma model:** ~$0.3 residual (3 % of move size)
+- **Delta + Gamma + Vega model:** ~$0.2 residual (2 % of move size)
+
+This empirical evidence underpins Delta-Gamma hedging: capturing the convexity (Gamma) term
+reduces unexplained P&L by ~85 %, making intraday attribution tractable.
+
+---
 
 # Installation guidelines of the env
 
