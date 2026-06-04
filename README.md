@@ -123,225 +123,167 @@ print(df.to_string(index=False))
 
 ## Key Results
 
-All experiments are fully reproducible via `src/research/experiments.py`.
-Base parameters unless noted: S₀ = K = 100, T = 1 yr, r = 5 %, σ = 20 %.
-Analytical benchmark (Black-Scholes call): **10.4506**.
+All experiments are reproducible from `src/research/experiments.py` and the two demo 
+notebooks. Base parameters unless noted: S₀ = K = 100, T = 1 yr, r = 5 %, σ = 20 %. 
+Analytical Black-Scholes benchmark:
+European call price: **10.4506**.
+European call delta: 0.636831
+European call theta: -0.025452
+European gamma: 0.018762
+European vega: 0.375240
+Put-call parity residual: 0.00e+00
 
 ---
 
-### 1 · Convergence of MC Pricing Error
+### 1 · Convergence — Pricing and Greeks at O(N⁻¹/²)
 
-To verify the theoretical *O(N^{−1/2})* convergence rate, both the standard and antithetic estimators
-were run across nine simulation budgets spanning N = 500 to N = 250 000. For each budget, the absolute
-pricing error |MC price − BS price| was recorded and a log-log OLS regression of error vs. N was
-fitted to obtain an empirical slope β. Because a single draw sequence can produce an artificially steep
-or shallow slope depending on the particular random numbers drawn, this procedure was repeated across
-50 independent seeds (42 through 91) and the slopes were averaged.
+Standard MC theory predicts an O(N⁻¹/²) convergence rate for both option prices and 
+finite-difference Greeks. This is verified empirically by tracking mean absolute 
+error against analytical Black-Scholes benchmarks across simulation budgets from 
+N = 1,000 to N = 500,000, with multiple independent seeds at each budget. The 
+log-log regression below shows the seed-averaged MAE for the call price and all 
+four Greeks (Delta, Gamma, Vega, Theta).
 
-The seed-averaged empirical convergence rates are **−0.46 ± 0.25** for standard MC and **−0.45 ± 0.23**
-for the antithetic estimator (mean ± std of OLS slopes across seeds), both in close agreement with the
-theoretical value of β = −0.50. The standard deviation of ≈ 0.24 across seeds confirms that
-single-seed rate estimates carry substantial noise and should not be reported without averaging.
+![MC convergence of price and Greeks to BS benchmarks](reports/figures/mc_greek_convergence.png)
 
-All values are mean ± std across the 50 seeds. The ± on MC Price reflects estimator variability across
-seeds; the ± on |Error| reflects how much the absolute pricing error fluctuates from one draw sequence
-to another — narrowing predictably as N grows.
+All five quantities align with the dashed O(N⁻¹/²) reference line: the convergence 
+rate is identical, with only the prefactor (vertical offset) differing between them. 
+The vertical ordering reflects each quantity's scale — a Greek of order 10⁻² produces 
+a smaller absolute error than one of order 1 at the same relative precision. 
+Independent log-log OLS slopes on the call price across 50 seeds (notebook 1 - experiment 1) yield 
+−0.45 ± 0.23 for the antithetic estimator and −0.46 ± 0.25 for standard MC, both 
+statistically consistent with the theoretical −0.50.
 
-| N | Method | MC Price (mean ± std) | \|Error\| (mean ± std) | Rel Error % | MC Std Error | Runtime (s, mean) |
-|--:|:-------|----------------------:|----------------------:|------------:|-------------:|------------------:|
-| 1 000 | Standard | 10.4547 ± 0.4274 | 0.3541 ± 0.2340 | 3.39 | 0.4655 | see notebook |
-| 1 000 | Antithetic | 10.3420 ± 0.3398 | 0.2762 ± 0.2229 | 2.64 | 0.4594 | see notebook |
-| 10 000 | Standard | 10.4578 ± 0.1486 | 0.1155 ± 0.0923 | 1.11 | 0.1471 | see notebook |
-| 10 000 | Antithetic | 10.4249 ± 0.0951 | 0.0738 ± 0.0644 | 0.71 | 0.1468 | see notebook |
-| 100 000 | Standard | 10.4557 ± 0.0531 | 0.0458 ± 0.0267 | 0.44 | 0.0466 | see notebook |
-| 100 000 | Antithetic | 10.4497 ± 0.0360 | 0.0299 ± 0.0195 | 0.29 | 0.0465 | see notebook |
-| 250 000 | Standard | 10.4491 ± 0.0295 | 0.0228 ± 0.0184 | 0.22 | 0.0294 | see notebook |
-| 250 000 | Antithetic | 10.4551 ± 0.0246 | 0.0205 ± 0.0141 | 0.20 | 0.0294 | see notebook |
-
-*MC Std Error is the within-simulation standard error (SE = sample std / √N), averaged across seeds. Runtime is wall-clock time per simulation run, averaged across the 50 seeds; hardware-dependent — live values are shown in the research notebook.*
+At N = 500,000, all five mean absolute errors fall below 10⁻³.
 
 ---
 
-### 2 · Variance Reduction — Antithetic Variates
+### 2 · Discretisation Bias — Up-and-Out Barrier Option
 
-Antithetic variates reduce estimator variance by pairing each draw Z with its mirror −Z, producing
-negatively correlated path pairs whose payoffs partially cancel each other's noise. For smooth,
-monotone payoffs such as European calls, the theoretical variance reduction factor (VRF) approaches 2×
-as the payoff-to-draw correlation approaches −1.
+Barrier options cannot be priced from the terminal stock price alone — the full 
+trajectory must be simulated to check whether the barrier is crossed. In practice, 
+paths are simulated on a discrete time grid of n_steps monitoring points, and 
+crossings between grid points are missed. Sparse grids systematically under-count 
+knock-out events and therefore **overstate** the option price; refining the grid 
+converges the discrete-monitoring price toward the continuous-monitoring price at 
+the known O(1/√n_steps) rate.
 
-To measure this empirically, 50 independent replications (seeds 0 through 49) were run for both the
-standard and antithetic estimators at each simulation budget N. The empirical VRF is the ratio of the
-cross-replication variances of the two price estimators:
+![Discretisation bias in up-and-out barrier pricing](reports/figures/barrier_discretisation_bias.png)
 
-$$\text{VRF}(N) = \frac{\text{Var}_{\text{standard}}(N)}{\text{Var}_{\text{antithetic}}(N)}$$
+This experiment prices an up-and-out call (S₀ = K = 100, B = 120, T = 1 yr, r = 5 %, 
+σ = 20 %) using 100,000 antithetic paths across nine resolutions from semi-annual 
+(n_steps = 2) to twice-daily (n_steps = 504). At n_steps = 2 the price is **2.6069**, 
+more than double the finest-grid estimate of **1.2825** — an overstatement of **+103 %**. 
+Bias halves roughly every time n_steps doubles, consistent with the theoretical rate. 
+By n_steps = 252 (daily monitoring) bias has collapsed to +3 %.
 
-Because antithetic paths require the same number of normal draws as standard paths but paired
-differently, the compute overhead is negligible. The efficiency ratio adjusts the VRF for any
-observed runtime difference, giving a work-normalised measure of gain per unit of wall-clock time.
+| n_steps | MC Price | Bias vs. n = 504 | Bias % |
+|--------:|---------:|-----------------:|-------:|
+| 2       | 2.6069   | +1.3244          | +103 % |
+| 8       | 1.9908   | +0.7083          | +55 %  |
+| 32      | 1.6142   | +0.3317          | +26 %  |
+| 128     | 1.3769   | +0.0944          | +7 %   |
+| **504** | **1.2825** | **—**          | **—**  |
 
-The median VRF of **2.66×** and median efficiency ratio of **2.92×** confirm that antithetic sampling
-consistently outperforms standard MC across all tested budgets. The VRF varies across N — peaking at
-**5.04×** for N = 5 000 and compressing toward 1× at very large N where both estimators are already
-highly precise — which is expected behaviour as the estimator variance becomes dominated by
-systematic rather than random components.
-
-| N | RT Std (s) | RT Anti (s) | Var (Standard) | Var (Antithetic) | VRF | Efficiency Ratio |
-|--:|-----------:|------------:|---------------:|-----------------:|----:|-----------------:|
-| 500 | see nb | see nb | 0.4866 | 0.1834 | 2.65× | 2.81× |
-| 1 000 | see nb | see nb | 0.2371 | 0.0819 | 2.90× | 2.72× |
-| 2 000 | see nb | see nb | 0.1139 | 0.0364 | 3.13× | 3.33× |
-| 5 000 | see nb | see nb | 0.0568 | 0.0113 | 5.04× | 5.79× |
-| 10 000 | see nb | see nb | 0.0240 | 0.0084 | 2.84× | 3.36× |
-| 25 000 | see nb | see nb | 0.0086 | 0.0032 | 2.66× | 3.54× |
-| 50 000 | see nb | see nb | 0.0036 | 0.0024 | 1.53× | 2.00× |
-| 100 000 | see nb | see nb | 0.0016 | 0.0014 | 1.17× | 1.33× |
-| 250 000 | see nb | see nb | 0.0008 | 0.0005 | 1.78× | 1.89× |
-
-**Median VRF: 2.66×  ·  Median efficiency ratio: 2.92×**
-
-*RT Std / RT Anti: mean wall-clock runtime per replication for the standard and antithetic estimators respectively; hardware-dependent — live values are shown in the research notebook.*
-
-The VRF varies across N because the gain depends on how much random noise remains to be cancelled. At moderate budgets (N = 1 000–25 000) both estimators are still far from convergence, so the negative correlation between antithetic pairs has a large noise pool to work with and the VRF is consistently above 2×, peaking at 5.04× for N = 5 000. At very large N (100 000+) both estimators have already converged close to the true price, the residual variance is tiny, and the two methods become nearly equally precise — compressing the VRF toward 1×. The reduction is most valuable at moderate N, indicating where the practical sweet spot is, since extremely large N is computationally expensive and delivers diminishing returns regardless of the estimator used.
-
-*Variance estimates are cross-replication sample variances over 50 independent runs per (N, method) cell. Runtime columns show mean wall-clock time per replication; hardware-dependent — live values are shown in the research notebook.*
+**Operational implication:** practitioners using weekly or monthly monitoring grids 
+for barrier products should expect a material upward pricing bias; daily or 
+sub-daily grids are required for reliable estimates.
 
 ---
 
-### 3 · Confidence Interval Coverage
+### 3 · Variance Reduction Methods
 
-A Monte Carlo price estimate is only as useful as the uncertainty attached to it. The standard approach
-is to accompany each estimate with an asymptotic 95 % confidence interval derived from the Central
-Limit Theorem:
+Two variance reduction techniques are implemented and benchmarked in this project. 
+Both carry **zero compute overhead** — they are seed and draw-management choices, 
+not resource tradeoffs. Their effectiveness, however, is calibrated to very 
+different problems: antithetic variates deliver a modest ~2× gain on smooth 
+European payoffs, while Common Random Numbers (CRN) deliver up to **~100 000×** 
+variance reduction on finite-difference Greeks.
 
-$$\hat{V} \pm 1.96 \times \frac{s}{\sqrt{N}}$$
+#### 3A · Antithetic Variates — European Options
 
-where $s$ is the sample standard deviation of the discounted payoffs. This interval is valid
-asymptotically — it relies on the CLT approximating the estimator distribution as normal, which holds
-when N is large enough relative to the skewness of the payoff distribution.
+Antithetic variates pair each draw Z with its mirror −Z, producing negatively 
+correlated path pairs whose payoffs partially cancel each other's noise. For 
+smooth, monotone payoffs such as European calls, the theoretical Variance 
+Reduction Factor (VRF) approaches 2× as the payoff-to-draw correlation 
+approaches −1.
 
-To verify whether these intervals achieve their nominal 95 % coverage in practice, the experiment
-constructs 200 independent CIs per scenario (seeds 0 through 199, N = 10 000 paths each) and counts
-the fraction that contain the exact Black-Scholes price. A well-calibrated estimator should yield
-empirical coverage close to 95 %; systematic deviations indicate either insufficient N for the CLT
-approximation to hold, or payoff-distribution skewness that inflates the true variance beyond what the
-normal approximation captures.
+![Antithetic VRF across simulation budgets](reports/figures/antithetic_vrf.png)
 
-Empirical coverage across all six scenarios falls in the range **91.0 % – 93.0 %**, consistently below
-the 95 % nominal. This undercoverage is statistically significant: with 200 replications, the standard
-error of a coverage estimate is approximately 1.5 %, placing these readings 1–3 standard errors below
-nominal. The root cause is the right-skew of call option payoffs — a large fraction of paths expire
-out of the money with zero payoff, while the in-the-money paths produce a long right tail. This
-asymmetry means the true estimator variance is slightly understated by the normal CLT approximation at
-N = 10 000, causing the CI to be narrower than it should be. Coverage is expected to converge toward
-95 % as N increases and the CLT approximation improves.
+Empirically, across 50 independent replications per budget, the **median VRF 
+is 2.66×** with a peak of **5.04× at N = 5,000**. The gain compresses toward 
+1× at very large N (≥ 100,000) where both estimators are already highly precise 
+and there is little noise left for the antithetic pairs to cancel. The 
+sweet spot is moderate N, where the gain is really visible.
 
-Notably, the undercoverage is most pronounced for in-the-money options (ITM, 91.5 %) and
-low-volatility scenarios (91.0 %), where payoff distributions are more concentrated and the CLT
-convergence is slower relative to the skewness. Out-of-the-money and high-volatility scenarios
-approach 93 %, consistent with a more spread-out payoff distribution where the normal approximation
-is somewhat better.
+| N        | Var (Standard) | Var (Antithetic) | VRF    |
+|---------:|---------------:|-----------------:|-------:|
+| 1,000    | 0.2371         | 0.0819           | 2.90×  |
+| 5,000    | 0.0568         | 0.0113           | **5.04×** |
+| 25,000   | 0.0086         | 0.0032           | 2.66×  |
+| 100,000  | 0.0016         | 0.0014           | 1.17×  |
 
-| Scenario | S₀ / K | σ | T | BS Price | Empirical Coverage | RT total (s) | RT / rep (s) |
-|:---------|-------:|--:|--:|---------:|------------------:|-------------:|-------------:|
-| ITM (K = 90) | 1.11 | 20 % | 1.00 yr | 16.6994 | 91.5 % | 0.082 | 0.000411 |
-| ATM (K = 100) | 1.00 | 20 % | 1.00 yr | 10.4506 | 91.5 % | 0.070 | 0.000348 |
-| OTM (K = 110) | 0.91 | 20 % | 1.00 yr | 6.0401 | 93.0 % | 0.070 | 0.000349 |
-| Short tenor | 1.00 | 20 % | 0.25 yr | 4.6150 | 92.5 % | 0.064 | 0.000322 |
-| Low vol (σ = 10 %) | 1.00 | 10 % | 1.00 yr | 6.8050 | 91.0 % | 0.073 | 0.000363 |
-| High vol (σ = 40 %) | 1.00 | 40 % | 1.00 yr | 18.0230 | 92.0 % | 0.082 | 0.000411 |
+**Median VRF: 2.66× · Median efficiency ratio: 2.92×**
 
-*Coverage standard error ≈ 1.5 % per scenario (proportion SE over 200 replications). RT total: wall-clock time for all 200 replications per scenario; RT / rep: mean per replication. Hardware-dependent.*
+#### 3B · Common Random Numbers — Finite-Difference Greeks
 
+Finite-difference Greeks subtract near-equal MC prices, so the signal (the true 
+derivative) is small relative to the independent sampling noise of order σ/√N. 
+With CRN — reusing the same random seed across the base and all bumped pricing 
+calls — the same paths experience the parameter bump, the noise is fully 
+correlated, and it cancels in the difference, leaving only the true sensitivity.
+
+![CRN effectiveness across all four Greeks](reports/figures/crn_effectiveness.png)
+
+Across 100 replications at N = 50,000, the empirical VRF reaches **1,031× for 
+Delta, 105× for Vega, 60,312× for Gamma, and 432,756× for Theta**. Without CRN, 
+Gamma estimates scatter from −0.2 to +0.5 against a true value of 0.019, and 
+Theta from ±40 against a true value of −0.0255 — essentially pure noise. Theta 
+shows the most extreme VRF because two effects compound: its numerator subtracts 
+prices at nearly identical maturities (smallest signal of any Greek), and the 
+result is divided by dt ≈ 1/252, amplifying residual noise by 252×.
+
+| Greek | True BS Value | VRF (CRN vs no CRN) |
+|-------|--------------:|--------------------:|
+| Delta | 0.6368        | 1,031×              |
+| Vega  | 0.3752        | 105×                |
+| Gamma | 0.01876       | 60,312×             |
+| Theta | −0.0255       | **432,756×**        |
+
+**Practical conclusion:** no risk system should compute finite-difference Greeks 
+without CRN, and antithetic variates should be enabled by default for vanilla 
+European option pricing at moderate path counts.
 ---
 
-### 4 · Discretisation Bias — Up-and-Out Barrier Option
+### 4 · P&L Attribution — Delta-Gamma Taylor Expansion
 
-Path-dependent options such as barrier options cannot be priced from the terminal stock price alone —
-the full trajectory must be simulated to check whether the barrier was crossed at any point during the
-option's life. In practice, paths are simulated on a discrete time grid of n\_steps monitoring points.
-The knock-out condition is then checked only at those grid points, meaning that crossings occurring
-*between* two consecutive steps are invisible to the simulator. Sparse grids systematically under-count
-knock-out events, leaving paths alive that should have been extinguished, and therefore **overstate**
-the option price. As the grid becomes finer, the discrete-monitoring price converges to the
-continuous-monitoring price.
+Daily option P&L is explained in practice by the Greek-based Taylor expansion 
+ΔP&L ≈ Δ·ΔS + ½Γ·ΔS² + V·Δσ + Θ·Δt. This experiment bridges Greek estimation to 
+that practical task by repricing a long ATM call under Black-Scholes at new spot 
+levels (ΔS from −15 to +15) and comparing the actual P&L against two Greek-based 
+approximations: a first-order Delta-only model and a second-order Delta+Gamma model.
 
-This experiment prices an up-and-out call (S₀ = 100, K = 100, barrier B = 120, T = 1 yr, r = 5 %,
-σ = 20 %) using 100 000 antithetic paths (seed = 42) across nine time-step resolutions ranging from
-n\_steps = 2 (semi-annual monitoring) to n\_steps = 504 (twice-daily monitoring). The finest grid
-serves as the proxy for the continuous price; bias at each coarser resolution is measured relative to it.
+![P&L attribution: actual vs Delta-only vs Delta+Gamma](reports/figures/pnl_attribution.png)
 
-The results show a pronounced and monotonically decreasing bias: at n\_steps = 2 the price is
-**2.6069**, more than double the finest-grid estimate of **1.2825** — an absolute overstatement of
-**+1.32** (+103 %). The bias halves roughly every time the number of steps doubles, consistent with
-the known $O(1/\sqrt{n\_\text{steps}})$ convergence rate for discrete barrier monitoring. By
-n\_steps = 252 (daily monitoring) the bias has fallen to **+0.04** (3 %), and the 95 % confidence
-intervals at n\_steps = 252 and n\_steps = 504 are nearly overlapping, indicating practical convergence
-at daily resolution. This result has a direct operational implication: practitioners using weekly or
-monthly monitoring grids for barrier products should expect a material upward pricing bias, and daily
-or sub-daily grids are required for reliable estimates.
+The Delta-only approximation misses the option's convexity: its residual grows 
+quadratically with ΔS, reaching **~$2** at a ±$15 spot move (~20 % of the move size). 
+Adding the ½Γ·ΔS² term captures nearly all the curvature, keeping the residual 
+**below $0.3** even at the largest moves — a roughly **7× reduction** in unexplained 
+P&L. The small asymmetry that remains in the Delta+Gamma residual (positive for 
+down-moves, negative for up-moves) signals the next-order term (Speed = ∂Γ/∂S), 
+which only becomes detectable at large moves.
 
-| n\_steps | dt | MC Price | 95 % CI | Bias vs. n = 504 | Runtime (s) |
-|---------:|---:|--------:|:--------|----------------:|------------:|
-| 2 | 0.500 | 2.6069 | [2.576, 2.637] | +1.3244 | 0.015 |
-| 4 | 0.250 | 2.2629 | [2.234, 2.291] | +0.9804 | 0.019 |
-| 8 | 0.125 | 1.9908 | [1.964, 2.017] | +0.7083 | 0.037 |
-| 16 | 0.063 | 1.7651 | [1.740, 1.790] | +0.4826 | 0.061 |
-| 32 | 0.031 | 1.6142 | [1.590, 1.638] | +0.3317 | 0.093 |
-| 64 | 0.016 | 1.4915 | [1.469, 1.514] | +0.2090 | 0.184 |
-| 128 | 0.008 | 1.3769 | [1.355, 1.398] | +0.0944 | 0.412 |
-| 252 | 0.004 | 1.3239 | [1.303, 1.345] | +0.0414 | 0.777 |
-| **504** | **0.002** | **1.2825** | **[1.262, 1.303]** | **—** | **1.659** |
+| Approximation              | Residual at ΔS = ±15 | % of spot move |
+|----------------------------|---------------------:|---------------:|
+| Δ·ΔS  (Delta only)         | ~$2.0                | ~20 %          |
+| Δ·ΔS + ½Γ·ΔS²  (D + G)     | ~$0.3                | ~3 %           |
+
+This is the empirical foundation for Delta-Gamma hedging in practice: Delta and 
+Gamma together explain the bulk of daily option P&L, and the residual is the 
+"unexplained" bucket attributed to Vega, Theta, and higher-order sensitivities.
+
 
 ---
-
-### 5 · Monte Carlo Greek Estimation via Bump-and-Revalue
-
-Finite-difference Greeks are estimated using central differences with Common Random Numbers (CRN).
-Without CRN, second derivatives (Gamma, Theta) would be drowned in Monte Carlo noise. CRN ensures
-that parameter bumps generate differences driven purely by sensitivity, not sampling variation.
-
-**Convergence to Black-Scholes**
-
-All four MC Greeks converge to analytical BS benchmarks at the theoretical *O(N^{−1/2})* rate when
-Gamma and Theta are estimated with CRN. At N = 500,000 paths all absolute errors fall below 10^{−3}.
-The results validate both the bump-and-revalue technique and the CRN implementation:
-
-| Greek | BS Value | MC (N=500k) | Error | Rel Error % | VRF (with CRN) |
-|-------|-------:|--------:|-------:|----------:|---------------:|
-| Delta | 0.6368 | 0.6369 | 0.0001 | 0.01 % | 1,031× |
-| Gamma | 0.0188 | 0.0187 | 0.0001 | 0.53 % | 60,312× |
-| Vega | 0.3752 | 0.3747 | 0.0005 | 0.13 % | 105× |
-| Theta | -0.0176 | -0.0175 | 0.0001 | 0.57 % | 432,756× |
-
-*VRF = Variance Reduction Factor: the variance of plain (non-CRN) estimates divided by CRN estimates.
-Without CRN, Gamma and Theta estimates are purely noise; VRF quantifies the dramatic stabilization
-that CRN provides.*
-
-**Bump Size Optimization**
-
-Bump size balances truncation error (too-large bumps) against floating-point cancellation (too-small bumps).
-Testing across three orders of magnitude reveals distinct patterns:
-
-- **First-order Greeks (Delta, Vega):** L-shaped mean absolute error (MAE). Optimal plateau spans
-  h ∈ [0.005, 0.015] for Delta and dv ∈ [0.008, 0.012] for Vega. Market convention (h = 0.01,
-  dv = 0.01) sits safely in the plateau.
-- **Second-order Greels (Gamma):** U-shaped MAE with a sharper optimum near h ≈ 0.06. Theta shows
-  similar structure. At the market-convention bump sizes, all four Greeks MAE remains below 10^{−3}.
-
-**P&L Attribution: Delta + ½Γ·ΔS² vs. Actual Repricing**
-
-The Taylor expansion P&L ≈ Δ·ΔS + ½Γ·ΔS² + V·Δσ + Θ·Δt is the foundation of intraday
-P&L explain. Testing on ±$15 spot moves shows:
-
-- **Delta-only model:** ~$2 residual (20 % of move size)
-- **Delta + Gamma model:** ~$0.3 residual (3 % of move size)
-- **Delta + Gamma + Vega model:** ~$0.2 residual (2 % of move size)
-
-This empirical evidence underpins Delta-Gamma hedging: capturing the convexity (Gamma) term
-reduces unexplained P&L by ~85 %, making intraday attribution tractable.
-
----
-
 # Installation guidelines of the env
 
 **Minimal usage (no Poetry):**

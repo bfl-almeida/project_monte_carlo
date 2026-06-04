@@ -13,4 +13,3 @@ dist/
 build/
 *.egg-info/
 .DS_Store
-reports/figures/*.png

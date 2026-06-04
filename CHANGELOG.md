@@ -62,7 +62,23 @@ All notable changes to this project are documented in this file.
 ### Updated — README
 - Feature list now includes "Finite-difference Monte Carlo Greeks (Delta, Gamma, Vega, Theta) with Common Random Numbers".
 - Methods table adds "Finite-Difference Greeks (CRN): Bump-and-revalue Delta/Gamma/Vega/Theta via central differences with common random numbers".
-- Project structure updated to show both `test_black_scholes.py` and `test_monte_carlo.py`.
+- Project structure updated to show both `test_black_scholes.py`, `test_monte_carlo.py`, and new `src/research/` module.
+- New tagline: "A Python library for Monte Carlo option pricing, finite-difference Greeks, and variance reduction analysis under the Black-Scholes model."
+- Added Notebooks section with descriptions of `research_demo.ipynb` and `research_demo_greeks.ipynb`.
+- Added Section 5: "Monte Carlo Greek Estimation via Bump-and-Revalue" with empirical results.
+
+### Research Validation — MC Greeks Convergence and CRN Effectiveness (`research_demo_greeks.ipynb`)
+- **Greek convergence:** All four MC Greeks (Delta, Gamma, Vega, Theta) converge to analytical BS benchmarks at O(N⁻¹/²) rate. At N = 500k: all absolute errors < 10⁻³.
+- **CRN effectiveness:** Variance Reduction Factors: Delta 1,031×, Gamma 60,312×, Vega 105×, Theta 432,756×. Without CRN, second derivatives drown in noise.
+- **Bump size optimization:** First-order Greeks show L-shaped MAE with broad plateau; Gamma shows U-shaped MAE with sharper optimum. Market convention (h=0.01, dv=0.01) keeps all MAE < 10⁻³.
+- **P&L attribution:** Delta + ½Γ·ΔS² tracks actual repriced P&L within $0.3 (±$15 spot moves), vs ~$2 for Delta-only — empirical validation of Delta-Gamma hedging.
+
+### Changed — Module Organization
+- **Moved `src/option_pricing/experiments.py` → `src/research/experiments.py`** to cleanly separate reproducible research code from core library.
+- `src/option_pricing/` now contains only the pricing library (black_scholes.py, monte_carlo.py, utils.py).
+- `src/research/` holds experiment functions and demo notebooks.
+- Updated `pyproject.toml` packages list to include both `option_pricing` and `research` as top-level packages under `src/`.
+- Updated all imports in tests, notebooks, and README to use `research.experiments`.
 
 ---
 
