@@ -38,6 +38,12 @@ It is designed as an educational quantitative finance library, not as a producti
    their nominal coverage across a realistic parameter grid?
 4. **Discretisation Bias in Barrier Options** — How does path resolution (number of time
    steps) affect the knock-out probability and the resulting pricing bias?
+5. **MC Greek Convergence** — Do finite-difference MC Greeks converge to analytical BS Greeks
+   at the expected O(N⁻¹/²) rate, and what simulation budget is required for each Greek?
+6. **Common Random Numbers** — How much does CRN reduce variance in bump-and-revalue Greeks,
+   and is it strictly necessary for second derivatives (Gamma, Theta)?
+7. **P&L Attribution** — How accurately do Delta and Delta+Gamma Taylor expansions track
+   option P&L across a range of spot moves?
 
 ## Methods Implemented
 
@@ -74,7 +80,7 @@ monte-carlo-option-pricing/
 │  │  └─ utils.py              # Statistical helpers, convergence table
 │  └─ research/                # Reproducible research experiments
 │     ├─ __init__.py
-│     └─ experiments.py        # Four main experiment functions
+│     └─ experiments.py        # Seven reproducible experiment functions (Exp 1–7)
 ├─ tests/
 │  ├─ test_black_scholes.py   # 30 tests: exact reference + properties + edge cases
 │  └─ test_monte_carlo.py      # 18 tests: pricing, barrier, Greeks, experiments
