@@ -14,12 +14,12 @@ The goal is to demonstrate practical skills relevant to quantitative finance rol
 
 - Analytical Black-Scholes pricing for European calls and puts
 - Monte Carlo pricing for European options
-- Finite-difference Monte Carlo Greeks (Delta, Gamma, Vega, Theta) with Common Random Numbers
+- Finite-Difference Greeks (CRN) Bump-and-revalue Delta/Gamma/Vega via central differences; Theta via one-trading-day time decay.
 - Confidence intervals and convergence analysis
 - Variance reduction with antithetic variates
 - Statistical metrics per experiment: absolute error, relative error, standard error, confidence intervals, runtime
 - Analytical Black-Scholes Greeks (Delta, Gamma, Vega, Theta, Rho)
-- Barrier option pricing — in progress
+- Barrier option pricing
 - Unit tests with pytest
 
 ## Why this project matters
