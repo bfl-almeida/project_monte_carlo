@@ -70,6 +70,25 @@ def test_monte_carlo_call_close_to_black_scholes() -> None:
 
 
 # ============================================================================
+# Input Validation
+# ============================================================================
+
+def test_antithetic_requires_even_n_paths() -> None:
+    with pytest.raises(ValueError, match="n_paths must be even"):
+        mc_european_option_price(
+            S0=100,
+            K=100,
+            T=1,
+            r=0.05,
+            sigma=0.2,
+            option_type="call",
+            n_paths=9999,
+            antithetic=True,
+            random_seed=42,
+        )
+
+
+# ============================================================================
 # Barrier Option Logic
 # ============================================================================
 
