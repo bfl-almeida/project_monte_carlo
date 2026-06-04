@@ -103,13 +103,17 @@ def mc_european_option_price(
 
     discounted = np.exp(-r * T) * payoffs
     price = float(np.mean(discounted))
+
     if antithetic:
-        # SE must be computed over pair means, not individual payoffs.
-        # With antithetic draws, discounted[:half] and discounted[half:2*half]
-        # are negatively correlated pairs; treating them as independent
-        # overestimates the SE by a factor of 1/sqrt(1 + rho) where rho < 0.
+        if n_paths % 2 != 0:
+            raise ValueError("n_paths must be even when antithetic=True.")
+
+        # Treating paired payoffs as independent ignores their covariance and gives
+        # an incorrect SE for the antithetic estimator. The sampling unit is the
+        # pair mean: 0.5 * (payoff(Z) + payoff(-Z)).
+
         half = n_paths // 2
-        pair_means = 0.5 * (discounted[:half] + discounted[half : 2 * half])
+        pair_means = 0.5 * (discounted[:half] + discounted[half:])
         standard_error = float(np.std(pair_means, ddof=1) / np.sqrt(half))
     else:
         standard_error = float(np.std(discounted, ddof=1) / np.sqrt(n_paths))
@@ -151,7 +155,7 @@ def mc_european_option_greeks(
     Theta is reported as one-trading-day time decay, estimated by reducing
     time-to-maturity by 1/252: theta ≈ V(T - 1/252) - V(T).
     This matches the analytical Black-Scholes theta convention used in this project,
-    where annual theta is divided by 252.
+    where theta is reported as a one-trading-day price decay.
     """
     h  = 0.01 * S0
     dv = 0.01
