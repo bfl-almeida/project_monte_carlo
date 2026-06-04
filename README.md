@@ -101,7 +101,11 @@ monte-carlo-option-pricing/
 ## Quickstart
 
 ```python
-from option_pricing import mc_european_option_price, bs_call_price, mc_european_option_greeks
+from option_pricing import (
+    bs_call_price,
+    mc_european_option_price,
+    mc_european_option_greeks,
+)
 from research.experiments import run_convergence_experiment
 
 # Analytical benchmark
@@ -216,10 +220,8 @@ approaches −1.
 ![Antithetic VRF across simulation budgets](reports/figures/antithetic_vrf.png)
 
 Empirically, across 50 independent replications per budget, the **median VRF 
-is 2.66×** with a peak of **5.04× at N = 5,000**. The gain compresses toward 
-1× at very large N (≥ 100,000) where both estimators are already highly precise 
-and there is little noise left for the antithetic pairs to cancel. The 
-sweet spot is moderate N, where the gain is really visible.
+is 2.66×** with a peak of **5.04× at N = 5,000**. At very large N, both estimator variances become small, making empirical VRF estimates noisy with only 50 replications. 
+The apparent compression toward 1× should therefore be interpreted cautiously.
 
 | N        | Var (Standard) | Var (Antithetic) | VRF    |
 |---------:|---------------:|-----------------:|-------:|

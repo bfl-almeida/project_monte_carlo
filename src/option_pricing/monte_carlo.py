@@ -21,7 +21,7 @@ class MonteCarloGreeks:
     delta: float
     gamma: float
     vega: float       # per 1 vol point (1% move in sigma)
-    theta: float      # per calendar day (negative for long options)
+    theta: float      # per trading day; estimated as V(T - 1/252) - V(T)
     n_paths: int
     random_seed: int | None
 
@@ -103,7 +103,16 @@ def mc_european_option_price(
 
     discounted = np.exp(-r * T) * payoffs
     price = float(np.mean(discounted))
-    standard_error = float(np.std(discounted, ddof=1) / np.sqrt(len(discounted)))
+    if antithetic:
+        # SE must be computed over pair means, not individual payoffs.
+        # With antithetic draws, discounted[:half] and discounted[half:2*half]
+        # are negatively correlated pairs; treating them as independent
+        # overestimates the SE by a factor of 1/sqrt(1 + rho) where rho < 0.
+        half = n_paths // 2
+        pair_means = 0.5 * (discounted[:half] + discounted[half : 2 * half])
+        standard_error = float(np.std(pair_means, ddof=1) / np.sqrt(half))
+    else:
+        standard_error = float(np.std(discounted, ddof=1) / np.sqrt(n_paths))
     return MonteCarloResult(price=price, standard_error=standard_error)
 
 def mc_european_option_greeks(
@@ -121,11 +130,13 @@ def mc_european_option_greeks(
 
     Uses Common Random Numbers (CRN): the same random seed is passed to all
     pricing calls so differences reflect parameter sensitivity only, not
-    sampling noise. Central differences are used for all Greeks, giving
+    sampling noise. Central differences are used for Delta, Gamma and Vega, giving
     O(h²) truncation error vs O(h) for forward differences.
+    Theta is estimated as a one-trading-day time decay by reducing time-to-maturity by 1/252.
 
-    Antithetic variates are disabled. Mixing antithetic and non-antithetic
-    paths across bumps breaks the CRN guarantee. Use large n_paths instead.
+    CRN is used through identical random seeds across bumps; 
+    antithetic sampling can also be enabled, but the same antithetic configuration 
+    must be used across all bumped prices.
 
     Bump sizes
     ----------
@@ -137,12 +148,16 @@ def mc_european_option_greeks(
     difference is divided by 100 so the output matches dV/d(sigma%) rather
     than dV/d(sigma).
 
-    Theta is returned per calendar day to match Black-Scholes theta
-    conventions used in this project.
+    Theta is reported as one-trading-day time decay, estimated by reducing
+    time-to-maturity by 1/252: theta ≈ V(T - 1/252) - V(T).
+    This matches the analytical Black-Scholes theta convention used in this project,
+    where annual theta is divided by 252.
     """
     h  = 0.01 * S0
     dv = 0.01
     dt = 1.0 / 252
+    if T <= dt:
+        raise ValueError("Theta estimation requires T > 1/252.")
 
     def _price(S0_: float = S0, sigma_: float = sigma, T_: float = T) -> float:
         return mc_european_option_price(
@@ -163,7 +178,7 @@ def mc_european_option_greeks(
     delta = (spot_up - spot_down) / (2 * h)
     gamma = (spot_up - 2 * base + spot_down) / h ** 2
     vega  = (vol_up - vol_down) / (2 * dv) / 100
-    theta = (theta_price - base) / dt / 252.0
+    theta = theta_price - base
 
     return MonteCarloGreeks(
         base_price=base,
@@ -247,5 +262,10 @@ def mc_barrier_option_price(
     discounted = np.exp(-r * T) * payoffs
 
     price = float(np.mean(discounted))
-    standard_error = float(np.std(discounted, ddof=1) / np.sqrt(len(discounted)))
+    if antithetic:
+        half = n_paths // 2
+        pair_means = 0.5 * (discounted[:half] + discounted[half : 2 * half])
+        standard_error = float(np.std(pair_means, ddof=1) / np.sqrt(half))
+    else:
+        standard_error = float(np.std(discounted, ddof=1) / np.sqrt(n_paths))
     return MonteCarloResult(price=price, standard_error=standard_error)
