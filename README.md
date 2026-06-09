@@ -260,7 +260,7 @@ draws, making them highly correlated and allowing most of the pathwise noise to 
 were annualized, the finite-difference quotient would divide by dt ≈ 1/252, further amplifying
 residual noise; this project reports Theta as one-trading-day decay.
 
-| Greek | True BS Value | Emprical VRF (CRN vs no CRN) |
+| Greek | True BS Value | Empirical VRF (CRN vs no CRN) |
 |-------|--------------:|-----------------------------:|
 | Delta | 0.6368        | 1,031×                       |
 | Vega  | 0.3752        | 105×                         |
